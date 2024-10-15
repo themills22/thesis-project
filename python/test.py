@@ -1,5 +1,6 @@
 import numpy as np
 import scaler
+import time
 
 def projection(point):
     n = point.shape[0]
@@ -20,7 +21,7 @@ def gradient_descent(evaluator, point, gamma, tolerance, project_pls):
         iteration += 1
     return value, point, iteration
 
-n = 3
+n = 50
 rng = np.random.default_rng(12345)
 system = rng.normal(0, 1, (n, n, n))
 psd_system = np.array([B.T @ B for B in system])
@@ -38,14 +39,12 @@ psd_system = np.array([B.T @ B for B in system])
 #     print('actual{0}: {1}'.format(i, actual_gradient))
 #     print('')
 
-evaluator = lambda point: scaler.scaler(psd_system, point)
-minimizer, point, iteration = gradient_descent(evaluator, np.zeros(n), 0.01, 1e-8, True)
-print('answer: {0}'.format(minimizer))
-print('point: {0}'.format(point))
-print('iteration: {0}'.format(iteration))
-
+start = time.time()
 evaluator = lambda point: scaler.scaler_reduced(psd_system, point)
 minimizer, point, iteration = gradient_descent(evaluator, np.zeros(n - 1), 0.01, 1e-8, False)
-print('answer: {0}'.format(minimizer))
-print('point: {0}'.format(point))
-print('iteration: {0}'.format(iteration))
+end = time.time()
+print('method: GD')
+print('n: {0}'.format(n))
+print('answer: {0}'.format(True))
+print('minimum: {0}'.format(minimizer))
+print('time taken: {0}'.format(end - start))
