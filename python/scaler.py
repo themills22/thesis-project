@@ -1,24 +1,47 @@
+import common
 import numpy as np
 
 # ripped from Barvinok
 def scaler(system, point, include_gradient=True):
+    """The default "scaler" function from Barvinok f(x) = log(det(x_1 * Q_1 + ... + x_n * Q_n))
+
+    Args:
+        system: (N, N, N) array_like: The PSD system of matrices to use in equation.
+        point: (N) array_like: The point to calculate the equation for.
+        include_gradient (bool, optional): Whether to calculate the gradient. Defaults to True.
+
+    Returns:
+        (Result): The result of the scaler function.
+    """
     system_S = np.zeros(system.shape)
     exp_point = np.exp(point)
     for i in range(system.shape[0]):
         system_S[i] = exp_point[i] * system[i]
     S = np.sum(system_S, 0)
     sign, absolute_logdet = np.linalg.slogdet(S)
-    function_value = sign * absolute_logdet
-    gradient_value = None
+    value = sign * absolute_logdet
+    gradient = None
     if include_gradient:
-        gradient_value = np.zeros(system.shape[0])
+        gradient = np.zeros(system.shape[0])
         inverse_S = np.linalg.inv(S)
         for i in range(system.shape[0]):
-            gradient_value[i] = exp_point[i] * np.trace(system[i] @ inverse_S)
-    return (function_value, gradient_value)
+            gradient[i] = exp_point[i] * np.trace(system[i] @ inverse_S)
+    return common.Result(value, gradient)
 
-# linear reduction of the original scaler that eliminates x_n (x_n = x_1 + ... + x_{n-1})
-def scaler_reduced(system, point, include_gradient=True):
+# linear reduction of the original scaler that eliminates x_n (x_n = -x_1 - ... - x_{n-1})
+def scaler_hyperplane_reduced(system, point, include_gradient=True):
+    """The scaler function on the hyperplane x_1 + ... + x_n = 0. Only need to provide
+    the first n-1 points as this function has eliminated the x_n point through a linear
+    equality constraint elimination (x_n = -x_1 - ... - x_{n-1}).
+
+    Args:
+        system: (N, N, N) array_like: The PSD system of matrices to use in equation.
+        point: (N - 1) array_like: The point to calculate the equation for.
+        include_gradient (bool, optional): Whether to calculate the gradient. Defaults to True.
+
+    Returns:
+        Result: The result of the scaler function.
+    """
     n = system.shape[0]
     exp_point = np.zeros(n)
     exp_point[0:n - 1] = np.exp(point)
@@ -35,44 +58,36 @@ def scaler_reduced(system, point, include_gradient=True):
         inverse_S = np.linalg.inv(S)
         for i in range(n - 1):
             gradient[i] = np.trace(inverse_S @ (system_S[i] - system_S[n - 1]))
-    return value, gradient
+    return common.Result(value, gradient)
 
-def scaler_reduced_oracle(system, point, delta):
-    value, gradient = scaler_reduced(system, point)
+def scaler_hyperplane_reduced_oracle(system, point, delta):
+    """The separation oracle to use for scaler-hyperplane-reduced function.
+
+    Args:
+        system: (N, N, N) array_like: The PSD system of matrices to use in equation.
+        point: (N - 1) array_like: The point to calculate the equation for.
+        delta: float64: The length of the box's sides.
+
+    Returns:
+        OracleResult: The result of the separation oracle.
+    """
+    value, gradient = scaler_hyperplane_reduced(system, point)
     answer = all((-1 * (delta / 2)) <= value and value <= (delta / 2) for value in gradient)
-    return answer, value, gradient
+    return common.OracleResult(answer, value, gradient)
 
-def lagrange_hyperplane(point, l, include_gradients=True):
-    l_vector = l * np.ones(point.shape[0])
-    function_value = np.dot(l_vector, point)
-    point_gradient = None
-    l_gradient = None
-    if include_gradients:
-        point_gradient = l_vector
-        l_gradient = np.sum(point)
-    return (function_value, point_gradient, l_gradient)
-
-# last index of point is the lagrange multiplier
-def lagrange_scaler(system, point, include_gradient=True):
-    scaler_value, scaler_gradient = scaler(system, point, include_gradient)
-    l_index = point.shape[0] - 1
-    hyper_value, hyper_point_gradient, hyper_l_gradient = lagrange_hyperplane(point[0:l_index], point[l_index], include_gradient)
-    function_value = scaler_value + hyper_value
-    gradient_value = None
-    if include_gradient:
-        gradient_value = np.zeros(point.shape[0])
-        gradient_value[0:l_index] = scaler_gradient + hyper_point_gradient
-        gradient_value[l_index] = hyper_l_gradient
-    return (function_value, gradient_value)
-
-def lagrange_oracle(system, point, delta):
-    scaler_value, scaler_gradient = lagrange_scaler(system, point)
-    answer = all((delta / 2) <= value and value <= (delta / 2) for value in scaler_gradient)
-    return answer, scaler_value, scaler_gradient
-
-# ripped from Gurvitz and others: file:///C:/Users/mvinc/Documents/UTSA/thesis/mixed-discriminant-approximation.pdf (yes, I know you can't access this :))
-# assuming dtype is a flaot type
+# ripped from Gurvitz and others: file:///C:/Users/mvinc/Documents/UTSA/thesis/mixed-discriminant-approximation.pdf (yes, I know you can't access this :));
+# given that our matrix entries are not going to be integer entries I had to fiddle with the Hadamard's inequality to get the following;
+# assuming dtype is a float type;
 def radius(n, dtype):
+    """The bounded radius of where a minimum can lie w.r.t. the scaler function in the hyperplane.
+
+    Args:
+        n : The size of the system.
+        dtype : The numpy dtype.
+
+    Returns:
+        float64: The bounded radius.
+    """
     max_value = np.finfo(dtype).max
     n_power = np.power(n, 3 / 2)
-    return n_power * (np.log(n_power) + np.log(max_value))
+    return n_power * (np.log2(n_power) + np.log2(max_value))
