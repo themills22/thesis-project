@@ -18,7 +18,7 @@ def ellipsoid(ellipsoid_matrix, center, delta, oracle):
             # note that it is possible for oracle to return True answer while function_value >= best_function_value
             # we still choose to leave the best_function_value be and exit the ellipsoid algorithm
             best_result = common.EllipsoidResult(oracle_result.answer, oracle_result.value, center, oracle_result.gradient)
-    return best_result
+    return common.EllipsoidResult(oracle_result.answer, best_result.value, best_result.point, best_result.gradient)
 
 # lazy inside check as I am completely ignoring the orientation of the ellipsoid
 def inside(ellipsoid_matrix, delta):
