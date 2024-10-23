@@ -1,5 +1,7 @@
 import common
 import numpy as np
+import scipy as sp
+import scipy.optimize as opt
 
 # ripped from Barvinok
 def scaler(system, point, include_gradient=True):
@@ -44,8 +46,8 @@ def scaler_hyperplane_reduced(system, point, include_gradient=True):
     """
     n = system.shape[0]
     exp_point = np.zeros(n)
-    exp_point[0:n - 1] = np.exp(point)
-    exp_point[n - 1] = np.exp(np.sum(-1 * point))
+    exp_point[0:-1] = np.exp(point)
+    exp_point[-1] = np.exp(np.sum(-1 * point))
     system_S = np.zeros(system.shape)
     for i in range(n):
         system_S[i] = exp_point[i] * system[i]
@@ -74,6 +76,22 @@ def scaler_hyperplane_reduced_oracle(system, point, delta):
     value, gradient = scaler_hyperplane_reduced(system, point)
     answer = all((-1 * (delta / 2)) <= value and value <= (delta / 2) for value in gradient)
     return common.OracleResult(answer, value, gradient)
+
+def scale_hyperplane_reduced_system(system, initial_point=None):
+    n = system.shape[0]
+    initial_point = np.zeros(n - 1) if initial_point is None else initial_point
+    f = lambda point: scaler_hyperplane_reduced(system, point)
+    result = opt.minimize(f, initial_point, method='BFGS', jac=True)
+    if not result.success:
+        return None, None, result.success
+    exp = np.zeros(n)
+    exp[0:-1] = np.exp(result.x)
+    exp[-1] = np.exp(np.sum(-1 * result.x))
+    S = np.zeros((n, n))
+    for i in range(n):
+        S += exp[i] * system[i]
+    sqrt_S = sp.linalg.sqrtm(S)
+    return exp, np.linalg.inv(sqrt_S), result.success
 
 # ripped from Gurvitz and others: file:///C:/Users/mvinc/Documents/UTSA/thesis/mixed-discriminant-approximation.pdf (yes, I know you can't access this :));
 # given that our matrix entries are not going to be integer entries I had to fiddle with the Hadamard's inequality to get the following;
