@@ -6,16 +6,17 @@ import time
 import tqdm
 
 initial_n = 3
-final_n = 500
-attempts = 50
+final_n = 100
+step = 1
+attempts = 20
 
 # things to average:
 # * time taken to minimize scaler function
 # * "accuracy" of traces
 # * "accuracy" of identity
-n_range = range(initial_n, final_n + 1)
+n_range = np.arange(initial_n, final_n + 1, step)
 rng = np.random.default_rng(1234567)
-results = np.zeros((final_n + 1 - initial_n, attempts, 3))
+results = np.zeros((n_range.shape[0], attempts, 3))
 for n, i in tqdm.tqdm(it.product(n_range, range(attempts)), total=results.shape[0] * results.shape[1]):
     system = rng.normal(0, 1, (n, n, n))
     psd_system = np.array([A.T @ A for A in system])
@@ -40,7 +41,6 @@ for n, i in tqdm.tqdm(it.product(n_range, range(attempts)), total=results.shape[
     summation_norm = np.linalg.norm(summation - np.identity(n))
     results[n - initial_n, i] = np.array([time_taken, traces_diff_norm, summation_norm])
 
-ns = list(n_range)
 averaged_results = np.average(results, axis=1)
 
 figure, (time_plot, trace_plot, identity_plot) = plt.subplots(3)
@@ -48,14 +48,14 @@ figure.suptitle('Scaler results with attempts={0}'.format(attempts))
 
 time_plot.set_title('Average time taken to minimize')
 time_plot.set(xlabel='System size', ylabel='Time (s)')
-time_plot.plot(ns, averaged_results[:, 0])
+time_plot.plot(n_range, averaged_results[:, 0])
 
 trace_plot.set_title('Average distance of traces-vector from 1-vector')
 trace_plot.set(xlabel='System size', ylabel='Distance')
-trace_plot.plot(ns, averaged_results[:, 1])
+trace_plot.plot(n_range, averaged_results[:, 1])
 
 identity_plot.set_title('Average distance of scaled-summation matrix from identity matrix')
 identity_plot.set(xlabel='System size', ylabel='Distance')
-identity_plot.plot(ns, averaged_results[:, 2])
+identity_plot.plot(n_range, averaged_results[:, 2])
 
 plt.show()
