@@ -78,6 +78,16 @@ def scaler_hyperplane_reduced_oracle(system, point, delta):
     return common.OracleResult(answer, value, gradient)
 
 def scale_hyperplane_reduced_system(system, initial_point=None):
+    """Minimizes the scaler function on the hyperplane and returns relevant
+    information needed to scale the given system to doubly-stochastic.
+
+    Args:
+        system: (N, N, N) array_like: The PSD system of matrices to use in equation.
+        initial_point: (N - 1) array_like: The initial point to give to the minimizer. Defaults to origin.
+
+    Returns:
+        The scalars to scale with, the invertible matrix to scale with, and whether the minimization succeeded.
+    """
     n = system.shape[0]
     initial_point = np.zeros(n - 1) if initial_point is None else initial_point
     f = lambda point: scaler_hyperplane_reduced(system, point)

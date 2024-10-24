@@ -1,0 +1,37 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python Debugger: test_scaler arguments",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "args": [
+        "--start-size=3",
+        "--stop-size=10",
+        "--step=3",
+        "--attempts=20",
+        "--directory=D:\\deep-reinforcement-learning\\thesis-project\\results",
+        "--display=True"
+      ]
+    },
+    {
+      "name": "Python Debugger: Current File with Arguments",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "args": [
+        "--seed=12345",
+        "--n=3",
+        "--num-points=1000",
+        "--num-matrices=10",
+        "--gamma=0.05"
+      ]
+    }
+  ]
+}

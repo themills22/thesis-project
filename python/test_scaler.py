@@ -1,23 +1,51 @@
+import argparse
 import itertools as it
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import scaler
 import time
 import tqdm
 
-initial_n = 3
-final_n = 100
-step = 1
-attempts = 20
+def check_greater_than(value, number):
+    parsed_value = int(value)
+    if parsed_value <= number:
+        raise argparse.ArgumentTypeError("{value} <= {number}")
+    return parsed_value
+
+def is_valid_dir(value):
+    if not value:
+        return value
+    if os.path.isdir(value):
+        return value
+    raise NotADirectoryError(value)
+
+is_positive_int = lambda value: check_greater_than(value, 0)
+is_none_or_non_negative_int = lambda value: not value or check_greater_than(value, -1)
+parser = argparse.ArgumentParser()
+parser.add_argument('--start-size', help='The system size to start with. Must be at least 3.', required=True, type=lambda value: check_greater_than(value, 2))
+parser.add_argument('--stop-size', help='The system size to stop with. Must be >= --start-size.', required=True, type=is_positive_int)
+parser.add_argument('--step', help='Step size to use when going to system of next size.', required=True, type=is_positive_int)
+parser.add_argument('--attempts', help='The number of systems of a specific size to generate.', required=True, type=is_positive_int)
+parser.add_argument('--directory', help='The directory to save the results to.', required=True, type=is_valid_dir)
+parser.add_argument('--seed', help='The seed to use.', type=is_none_or_non_negative_int)
+parser.add_argument('--display', help='Display graph of the results.', type=bool)
+
+args = parser.parse_args()
+if args.stop_size < args.start_size:
+    raise RuntimeError("The --stop-size <= --start-size. {args.stop_size} < {args.start_size}")
 
 # things to average:
 # * time taken to minimize scaler function
 # * "accuracy" of traces
+
 # * "accuracy" of identity
-n_range = np.arange(initial_n, final_n + 1, step)
-rng = np.random.default_rng(1234567)
-results = np.zeros((n_range.shape[0], attempts, 3))
-for n, i in tqdm.tqdm(it.product(n_range, range(attempts)), total=results.shape[0] * results.shape[1]):
+seed_sequence = np.random.SeedSequence(args.seed)
+rng = np.random.default_rng(seed_sequence)
+n_range = np.arange(args.start_size, args.stop_size + 1, args.step)
+indices = {n_range[i]:i for i in range(n_range.shape[0])}
+results = np.zeros((n_range.shape[0], args.attempts, 3))
+for n, i in tqdm.tqdm(it.product(n_range, range(args.attempts)), total=results.shape[0] * results.shape[1]):
     system = rng.normal(0, 1, (n, n, n))
     psd_system = np.array([A.T @ A for A in system])
     
@@ -39,12 +67,20 @@ for n, i in tqdm.tqdm(it.product(n_range, range(attempts)), total=results.shape[
     time_taken = end - start
     traces_diff_norm = np.linalg.norm(traces - np.ones(n))
     summation_norm = np.linalg.norm(summation - np.identity(n))
-    results[n - initial_n, i] = np.array([time_taken, traces_diff_norm, summation_norm])
+    results[indices[n], i] = np.array([time_taken, traces_diff_norm, summation_norm])
+
+file = "{args.start_size}.{args.stop_size}.{args.step}.{args.attempts}.{seed_sequence.entropy}.results.npy"
+file = '{0}.{1}.{2}.{3}.{4}.npy'.format(args.start_size, args.stop_size, args.step, args.attempts, seed_sequence.entropy)
+file = os.path.join(args.directory, file)
+np.save(file, results)
+
+if not args.display:
+    exit()
 
 averaged_results = np.average(results, axis=1)
 
 figure, (time_plot, trace_plot, identity_plot) = plt.subplots(3)
-figure.suptitle('Scaler results with attempts={0}'.format(attempts))
+figure.suptitle('Scaler results with attempts={0}'.format(args.attempts))
 
 time_plot.set_title('Average time taken to minimize')
 time_plot.set(xlabel='System size', ylabel='Time (s)')
