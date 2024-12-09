@@ -66,7 +66,7 @@ def scaler_hyperplane_reduced_oracle(system, point, delta):
     """The separation oracle to use for scaler-hyperplane-reduced function.
 
     Args:
-        system: (N, N, N) array_like: The PSD system of matrices to use in equation.
+        system: (N, N, N) array_like: The system of matrices to use in equation.
         point: (N - 1) array_like: The point to calculate the equation for.
         delta: float64: The length of the box's sides.
 
@@ -82,7 +82,7 @@ def scale_hyperplane_reduced_system(system, initial_point=None):
     information needed to scale the given system to doubly-stochastic.
 
     Args:
-        system: (N, N, N) array_like: The PSD system of matrices to use in equation.
+        system: (N, N, N) array_like: The system of matrices to use in equation.
         initial_point: (N - 1) array_like: The initial point to give to the minimizer. Defaults to origin.
 
     Returns:
