@@ -1,6 +1,8 @@
 #import packages
 using HomotopyContinuation, LinearAlgebra, DataStructures
 
+# order of arguments: <seed> <number of iterations>
+
 #dimension of ellipses
 n = 10;
 

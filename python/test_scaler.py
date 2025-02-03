@@ -17,12 +17,11 @@ parser.add_argument('--step', help='Step size to use when going to system of nex
 parser.add_argument('--attempts', help='The number of systems of a specific size to generate.', required=True, type=is_positive_int)
 parser.add_argument('--directory', help='The directory to save the results to.', required=True, type=ph.is_valid_dir)
 parser.add_argument('--seed', help='The seed to use.', type=is_none_or_non_negative_int)
-
 parser.add_argument('--display', help='Display graph of the results.', type=bool)
 
 args = parser.parse_args()
 if args.stop_size < args.start_size:
-    raise RuntimeError("The stop-size <= start-size. {args.stop_size} <= {args.start_size}")
+    raise ValueError("The stop-size <= start-size. {args.stop_size} <= {args.start_size}")
 
 # things to average:
 # * time taken to minimize scaler function
@@ -59,13 +58,9 @@ for n, i in tqdm.tqdm(it.product(n_range, range(args.attempts)), total=results.s
     radius = np.linalg.norm(exp)
     results[indices[n], i] = np.array([time_taken, traces_diff_norm, summation_norm, radius])
 
-file = "{args.start_size}.{args.stop_size}.{args.step}.{args.attempts}.{seed_sequence.entropy}.results.npy"
 file = '{0}.{1}.{2}.{3}.{4}.npy'.format(args.start_size, args.stop_size, args.step, args.attempts, seed_sequence.entropy)
 file = os.path.join(args.directory, file)
 np.save(file, results)
-
-if not args.display:
-    exit()
 
 averaged_results = np.average(results, axis=1)
 
@@ -88,4 +83,8 @@ radius_plot.set_title('Average radius of scaler solution point')
 radius_plot.set(xlabel='System size', ylabel='radius')
 radius_plot.plot(n_range, averaged_results[:, 3])
 
-plt.show()
+file = '{0}.{1}.{2}.{3}.{4}.png'.format(args.start_size, args.stop_size, args.step, args.attempts, seed_sequence.entropy)
+file = os.path.join(args.directory, file)
+plt.savefig(file)
+if args.display:
+    plt.show()

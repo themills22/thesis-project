@@ -5,16 +5,32 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Python Debugger: compare_results arguments",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "python\\compare_results.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--perturbation-factor=0.02",
+        "--point-count=10",
+        "--level-set-count=10",
+        "--matrix-file=matrices\\10_dim.txt",
+        "--matrix-size=10",
+        "--save-directory=results\\compare-results",
+        "--display=True"
+      ]
+    },
+    {
       "name": "Python Debugger: test_scaler arguments",
       "type": "debugpy",
       "request": "launch",
       "program": "${file}",
       "console": "integratedTerminal",
       "args": [
-        "--start-size=3",
-        "--stop-size=10",
-        "--step=3",
-        "--attempts=20",
+        "--start-size=50",
+        "--stop-size=200",
+        "--step=20",
+        "--attempts=50",
         "--directory=D:\\deep-reinforcement-learning\\thesis-project\\results",
         "--display=True"
       ]
