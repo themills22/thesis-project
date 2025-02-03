@@ -1,0 +1,20 @@
+{
+    "0": {
+        "actual": 40,
+        "approximation": 0.002593233228111111,
+        "scale_time": 0.002507448196411133,
+        "approximation_time": 2.6977577209472656
+    },
+    "8": {
+        "actual": 34,
+        "approximation": 0.0019937320160674263,
+        "scale_time": 0.0025069713592529297,
+        "approximation_time": 2.859999656677246
+    },
+    "10": {
+        "actual": 28,
+        "approximation": 0.0016341498117320012,
+        "scale_time": 0.0010001659393310547,
+        "approximation_time": 2.3279805183410645
+    }
+}
