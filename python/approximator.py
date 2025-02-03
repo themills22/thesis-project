@@ -30,7 +30,7 @@ def scale_system(system):
         scaled_system[i] = np.sqrt(scaled_solutions[i]) * (system[i] @ T)
     return scaled_system, scaled_solutions
 
-def approximate(system, system_solutions, perturbation_factor, point_count, level_set_count, rng):
+def approximate(system, system_solutions, perturbation_factor, point_count, level_set_count, rng, fail_cap):
     """Approximates the system with the given system.
 
     Args:
@@ -46,19 +46,26 @@ def approximate(system, system_solutions, perturbation_factor, point_count, leve
         Is not currently scaled by 2^n.
     """
     n = system.shape[0]
-    points = rng.normal(0, 1, (point_count, n))
     sum = 0
-    for point, _ in tqdm.tqdm(it.product(points, range(level_set_count)), total=point_count * level_set_count):
-        random_matrices = rng.normal(0, 1, system.shape)
-        random_system = system + perturbation_factor * random_matrices
-        projected_system = _project(random_system, system_solutions, point, rng)
-        A = np.zeros((n, n))
-        for i in range(n):
-            A[i] = projected_system[i].T @ (projected_system[i] @ point)
-        sum += np.abs(np.linalg.det(A))
-    return sum / point_count # note that I'm not scaling by 2^n here
+    for _ in tqdm.tqdm(range(point_count), total=point_count):
+        point = rng.normal(0, 1, n)
+        for _ in range(level_set_count):
+            # attempts = 0
+            projected_system_tuples = project_system(system, perturbation_factor, system_solutions, point, rng, fail_cap)
+            # while any(projected_matrix is None for _, projected_matrix in projected_system_tuples) and attempts < 10:
+            #     attempts += 1
+            #     point = rng.normal(0, 1, n)
+            #     projected_system_tuples = project_system(system, perturbation_factor, system_solutions, point, rng, fail_cap)
+            if any(projected_matrix is None for _, projected_matrix in projected_system_tuples):
+                raise ValueError('System failed mega time')
+            A = np.zeros((n, n))
+            for i in range(n):
+                projected_matrix = projected_system_tuples[i][1]
+                A[i] = projected_matrix.T @ (projected_matrix @ point)
+            sum += np.abs(np.linalg.det(A))
+    return (2 ** n) * (sum / (point_count * level_set_count)) # note that I'm not scaling by 2^n here
         
-def _project(system, system_solutions, point, rng):
+def project_system(system, perturbation_factor, system_solutions, point, rng, fail_cap):
     """Performs the K_c(point) "level set" projection.
 
     Args:
@@ -76,16 +83,31 @@ def _project(system, system_solutions, point, rng):
     """
     n = system.shape[0]
     point_norm = np.dot(point, point)
-    projected_system = np.zeros(0, 1, system.shape)
+    projected_system_tuples = [] 
     for i in range(n):
-        D = system[i] @ point
-        d = np.dot(D, D) - system_solutions[i]
-        B = system[i].T + system[i]
-        b = np.dot(point, B @ point) / point_norm
-        root = np.sqrt(((b ** 2) / 4) - (d / point_norm))
-        if np.isnan(root):
-            raise ValueError('The given system cannot be projected.')
-        l = -1 * (b / 2) + rng.choice([-1, 1]) * root
-        projected_system[i] = np.array(system[i])
-        projected_system[i][np.diag_indices(n)] += l
-    return projected_system
+        projected_matrix_tuple = _try_project_matrix(system[i], perturbation_factor, system_solutions[i], \
+            point, point_norm, rng, fail_cap)
+        projected_system_tuples.append(projected_matrix_tuple)
+    return projected_system_tuples
+
+def _try_project_matrix(matrix, perturbation_factor, solution, point, point_norm, rng, fail_cap):
+    random_matrix = matrix + perturbation_factor * rng.normal(0, 1, matrix.shape)
+    for i in range(fail_cap):
+        projected_matrix = _project_matrix(random_matrix, solution, point, point_norm, rng)
+        if projected_matrix is not None:
+            return (i, projected_matrix)
+        random_matrix = matrix + perturbation_factor * rng.normal(0, 1, matrix.shape)
+    return (fail_cap, None)
+
+def _project_matrix(matrix, solution, point, point_norm, rng):
+    D = matrix @ point
+    d = np.dot(D, D) - solution
+    B = matrix.T + matrix
+    b = np.dot(point, B @ point) / point_norm
+    value = ((b ** 2) / 4) - (d / point_norm)
+    if value < 0:
+        return None
+    l = -1 * (b / 2) + rng.choice([-1, 1]) * np.sqrt(value)
+    projected_matrix = np.array(matrix)
+    projected_matrix[np.diag_indices(projected_matrix.shape[0])] += l
+    return projected_matrix
