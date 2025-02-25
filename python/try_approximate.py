@@ -5,9 +5,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import parser_helpers as ph
-import read_julia_data as rjd
+import python.dataset.read_julia_data as rjd
 import time
 import tqdm
+
+# point of this file does not reflect the file name
+# this file tries to see how reliably a system can projected onto the K_c(X) set
 
 file_path = 'D:\\deep-reinforcement-learning\\thesis-project\\matrices\\10_dim.txt'
 rng = np.random.default_rng()

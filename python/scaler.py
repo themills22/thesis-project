@@ -1,5 +1,5 @@
-import common
 import numpy as np
+import python.common as common
 import scipy as sp
 import scipy.optimize as opt
 
@@ -102,6 +102,25 @@ def scale_hyperplane_reduced_system(system, initial_point=None):
         S += exp[i] * system[i]
     sqrt_S = sp.linalg.sqrtm(S)
     return exp, np.linalg.inv(sqrt_S), result.success
+
+def scale_system(psd_system):
+    """Scales the PSD system.
+
+    Args:
+        psd_system : The PSD system to scale.
+
+    Returns:
+        Scales the system such that the system returned is already scaled.
+    """
+    
+    n = psd_system.shape[0]
+    exp, T, success = scale_hyperplane_reduced_system(psd_system)
+    if not success:
+        return None
+    scaled_system = np.zeros(psd_system.shape)
+    for i in range(n):
+        scaled_system[i] = exp[i] * (T @ psd_system[i] @ T)
+    return scaled_system
 
 # ripped from Gurvitz and others: file:///C:/Users/mvinc/Documents/UTSA/thesis/mixed-discriminant-approximation.pdf (yes, I know you can't access this :));
 # given that our matrix entries are not going to be integer entries I had to fiddle with the Hadamard's inequality to get the following;

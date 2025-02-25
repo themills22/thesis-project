@@ -1,13 +1,11 @@
 #import packages
-using HomotopyContinuation, LinearAlgebra, DataStructures
-
-# order of arguments: <seed> <number of iterations>
+using HomotopyContinuation, LinearAlgebra, DataStructures, Dates
 
 #dimension of ellipses
 n = 10;
 
 #number of trials
-its = 10000
+its = 100000
 
 #define variables
 @var x[1:n]
@@ -29,7 +27,7 @@ F = System(Eqs; variables = x, parameters = A_flat);
 
 #solve system once with generic complex parameters
 start_param = rand(Complex{Float64}, length(A_flat));
-R = solve(F(x, start_param));
+R = solve(F(x, start_param), show_progress = false);
 S = solutions(R);
 
 #select solutions to start_param up to +/- symmetry
@@ -43,18 +41,18 @@ start_sols = [S[m[i][1]] for i in 1:length(m)];
 reals=[];
 bad_params = [];
 sols=[];
+all_params = []
 
 #solve polynomial system its times
 for i in 1:its
-if i%500 == 0
-  println("Iteration : ", i)
-end
+
   #define set of n random ellipses
   new_params = [randn(n,n) for i in 1:n];
   new_params = [new_params[i]*new_params[i]' for i in 1:n];
 
   #normalize ellipses to have norm 1
   new_params = [new_params[i]/norm(new_params[i]) for i in 1:n]
+  append!(all_params, new_params)
   new_params = collect(Iterators.flatten(new_params));
 
   #solve system
@@ -62,10 +60,32 @@ end
   S1 = solutions(R1)
   append!(reals, length(real_solutions(R1)))
   append!(sols, length(S1))
-  if length(S1)<2^(n-1)
-    append!(bad_params, [new_params])
+  # if length(S1)<2^(n-1)
+  #   append!(bad_params, [new_params])
+  # end
+
+  if i % 100 == 0
+    println("Iteration : ", i)
+
+    file_name = "matrices\\data\\" * Dates.format(now(UTC), "yyyy-mm-dd-HH-MM-SS-sss") * ".txt"
+    open(file_name, "w") do file
+      show(file, all_params)
+      println(file)
+      show(file, reals)
+    end
+
+    empty!(reals)
+    empty!(bad_params)
+    empty!(sols)
+    empty!(all_params)
   end
 end
 
-length(reals)
-print(counter(2*reals), " average = ", sum(2*reals)/length(reals))
+if length(reals) > 0
+  file_name = "matrices\\data\\" * Dates.format(now(UTC), "yyyy-mm-dd-HH-MM-SS-sss") * ".txt"
+  open(file_name, "w") do file
+    show(file, all_params)
+    println(file)
+    show(file, reals)
+  end
+end
