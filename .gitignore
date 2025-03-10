@@ -57,3 +57,6 @@ src/testTestingRootWkspc/coverageWorkspace/.coverage
 
 # things I want to ignore
 results/
+matrices/data-scaled
+matrices/data-unscaled
+model/

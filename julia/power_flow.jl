@@ -1,32 +1,43 @@
 #import packages
-using HomotopyContinuation, LinearAlgebra, DataStructures, Dates
+using HomotopyContinuation, LinearAlgebra, DataStructures, Dates, Combinatorics
 
-#dimension of ellipses
-n = 10;
+#number of nodes
+n = 4;
 
 #number of trials
 its = 100000
 
 #define variables
 @var x[1:n]
+@var y[1:n]
 
-#define parameters of matrices used to define ellipses
-@var A[1:n, 1:n, 1:n]
+#define variables and equations to be repeatedly solved
+#define the edge variables, cheat to make it match an undirected graph edge matrix
+b = Array{Variable}(undef, n, n)
+for (i, j) in collect(combinations(1:n, 2))
+  v = Variable(:b, i, j)
+  b[i, j] = v
+  b[j, i] = v
+end
 
-#reshape parameters into vector of n nxn matrices
-A_params = [A[:, :, i] for i in 1:n];
+b_flat = [b[i, j] for (i, j) in collect(combinations(1:n, 2))]
+power_equations = Array{Expression}(undef, n)
+power_equations[1] = x[1] ^ 2 - 1
+for i in 2:n
+  p = [b[i][j] * (x[j] * y[i] - x[i] * y[j]) for j in 1:n]
+  power_equations[i] = sum(p)
+end
 
-#reshape parameters into (n-1)^3 size vector
-A_flat = collect(Iterators.flatten(A_params));
+constraint_equations = [x[i] ^ 2 + y[i] ^ 2 - 1 for i in 1:n]
 
-#define parametric equations to be repeatedly solved
-Eqs = [x'*A_params[i]*x - 1 for  i in 1:n];
+variables = vcat(x, y)
+equations = vcat(power_equations, constraint_equations)
 
 #define system of equations
-F = System(Eqs; variables = x, parameters = A_flat);
+F = System(equations; variables = variables, parameters = b_flat);
 
 #solve system once with generic complex parameters
-start_param = rand(Complex{Float64}, length(A_flat));
+start_param = rand(Complex{Float64}, length(b_flat));
 R = solve(F(x, start_param), show_progress = false);
 S = solutions(R);
 
@@ -47,13 +58,10 @@ all_params = []
 for i in 1:its
 
   #define set of n random ellipses
-  new_params = [randn(n,n) for i in 1:n];
-  new_params = [new_params[i]*new_params[i]' for i in 1:n];
+  new_params = [randn(n,n) for (i, j) in collect(combinations(1:n, 2))]
 
   #normalize ellipses to have norm 1
-  new_params = [new_params[i]/norm(new_params[i]) for i in 1:n]
   append!(all_params, new_params)
-  new_params = collect(Iterators.flatten(new_params));
 
   #solve system
   R1 = solve(F, start_sols; start_parameters=start_param, target_parameters=new_params, show_progress =false)
