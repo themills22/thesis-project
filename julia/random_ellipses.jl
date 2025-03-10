@@ -1,11 +1,13 @@
 #import packages
 using HomotopyContinuation, LinearAlgebra, DataStructures, Dates
 
+# order of arguments: <seed> <number of iterations>
+
 #dimension of ellipses
-n = 10;
+n = 8;
 
 #number of trials
-its = 100000
+its = 100000;
 
 #define variables
 @var x[1:n]
@@ -41,13 +43,14 @@ start_sols = [S[m[i][1]] for i in 1:length(m)];
 reals=[];
 bad_params = [];
 sols=[];
-all_params = []
+all_params = [];
 
 #solve polynomial system its times
 for i in 1:its
 
   #define set of n random ellipses
   new_params = [randn(n,n) for i in 1:n];
+  append!(all_params, new_params)
   new_params = [new_params[i]*new_params[i]' for i in 1:n];
 
   #normalize ellipses to have norm 1
@@ -65,9 +68,9 @@ for i in 1:its
   # end
 
   if i % 100 == 0
-    println("Iteration : ", i)
+    println("Iteration: ", i)
 
-    file_name = "matrices\\data\\" * Dates.format(now(UTC), "yyyy-mm-dd-HH-MM-SS-sss") * ".txt"
+    local file_name = "matrices\\data\\" * Dates.format(now(UTC), "yyyy-mm-dd-HH-MM-SS-sss") * ".txt"
     open(file_name, "w") do file
       show(file, all_params)
       println(file)
@@ -78,14 +81,5 @@ for i in 1:its
     empty!(bad_params)
     empty!(sols)
     empty!(all_params)
-  end
-end
-
-if length(reals) > 0
-  file_name = "matrices\\data\\" * Dates.format(now(UTC), "yyyy-mm-dd-HH-MM-SS-sss") * ".txt"
-  open(file_name, "w") do file
-    show(file, all_params)
-    println(file)
-    show(file, reals)
   end
 end
