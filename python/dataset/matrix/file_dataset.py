@@ -47,19 +47,20 @@ class FileDataset(Dataset):
         Returns:
             The system and solution at the index.
         """
-        systems, solutions = None, None
+        inputs, solution_counts = None, None
         file_index = int(index / self.entries_per_file)
         item = self.cache.get(file_index)
         if item is None:
             npz_file = np.load(self.files[file_index])
-            systems, solutions = npz_file['systems'], npz_file['solutions']
-            systems = [torch.from_numpy(system.flatten()).float() for system in systems]
-            solutions = [torch.tensor([solution]).float() for solution in solutions] 
-            self.cache.put(file_index, (systems, solutions))
+            systems, solution_points, solution_counts = npz_file['systems'], npz_file['solutions'], npz_file['solution_counts']
+            inputs = [torch.from_numpy(np.concatenate((system.flatten(), solution_point))).float() \
+                for system, solution_point in zip(systems, solution_points)]
+            solution_counts = [torch.tensor([solution]).float() for solution in solution_counts] 
+            self.cache.put(file_index, (inputs, solution_counts))
         else:
-            systems, solutions = item
+            inputs, solution_counts = item
         
-        system, solution = systems[index % self.entries_per_file], solutions[index % self.entries_per_file]
+        input, solution = inputs[index % self.entries_per_file], solution_counts[index % self.entries_per_file]
         if self.transform:
-            system, solution = self.transform((system, solution))
-        return system, solution
+            input, solution = self.transform((input, solution))
+        return input, solution

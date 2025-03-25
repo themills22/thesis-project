@@ -5,8 +5,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from python.dataset.file_dataset import FileDataset
-from python.dataset.permutate import Permutate
+from python.dataset.matrix.file_dataset import FileDataset
+from python.dataset.matrix.permutate import Permutate
 from torchvision.transforms import v2
 
 class NN(nn.Module):
@@ -14,7 +14,7 @@ class NN(nn.Module):
         super().__init__()
         total = size ** 3
         self.model = nn.Sequential(
-            nn.Linear(total, 4 * total),
+            nn.Linear(total + size, 4 * total),
             nn.ReLU(),
             nn.Linear(4 * total, 4 * total),
             nn.ReLU(),
@@ -106,7 +106,7 @@ def main():
     transform = v2.Compose([
         Permutate(n, rng)
     ])
-    data_folder = 'D:\\deep-reinforcement-learning\\thesis-project\\matrices\\data-scaled\\{}'.format(n)
+    data_folder = 'D:\\deep-reinforcement-learning\\thesis-project\\data\\scaled\\{}'.format(n)
     model_folder = 'D:\\deep-reinforcement-learning\\thesis-project\\model\\{}'.format(n)
     files = next(os.walk(data_folder), (None, None, []))[2]
     files = [os.path.join(data_folder, file) for file in files]
@@ -119,15 +119,15 @@ def main():
     test_files = files[train_count:]
     test_dataset = FileDataset(test_files, 100, n, 100, transform)
     test_loader = torch.utils.data.DataLoader(test_dataset, **test_kwargs)
-   
-    model_to_load = 'D:\\deep-reinforcement-learning\\thesis-project\\model\\8\\2025-02-24-20-05-34.pt'
+
+    model_to_load = 'D:\\deep-reinforcement-learning\\thesis-project\\model\\8\\2025-02-25-19-30-39.pt '
     model = NN(n)
     if model_to_load:
         model.load_state_dict(torch.load(model_to_load))
     model = model.to(device)
     optimizer = optim.Adadelta(model.parameters(), 1.0)
     loss = nn.MSELoss()
-    for epoch in range(1, 1001):
+    for epoch in range(1, 201):
         train(model, device, train_loader, optimizer, loss, epoch)
         test_loss = test(model, device, test_loader, loss, epoch)
         if epoch % 10 == 0:
