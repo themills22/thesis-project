@@ -24,15 +24,15 @@
       "name": "Python Debugger: test_scaler arguments",
       "type": "debugpy",
       "request": "launch",
-      "program": "${file}",
+      "program": "python\\results\\scaler_results.py",
       "console": "integratedTerminal",
       "args": [
         "--start-size=50",
-        "--stop-size=200",
+        "--stop-size=51",
         "--step=20",
         "--attempts=50",
         "--directory=D:\\deep-reinforcement-learning\\thesis-project\\results",
-        "--display=True"
+        "--ignore-newton"
       ]
     },
     {
