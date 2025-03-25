@@ -1,6 +1,6 @@
 import itertools as it
 import numpy as np
-import scaler
+import python.scaling.scaler as scaler
 import scipy as sp
 import tqdm
 
@@ -18,7 +18,7 @@ def scale_system(system):
     """
     n = system.shape[0]
     psd_system = np.array([A.T @ A for A in system])
-    exp, T, success = scaler.scale_hyperplane_reduced_system(psd_system)
+    exp, T, success = scaler.scale_hyperplane_reduced_system_bfgs(psd_system)
     if not success:
         raise ValueError('The given system cannot be scaled.')
     solution_sum = np.sum(exp)
