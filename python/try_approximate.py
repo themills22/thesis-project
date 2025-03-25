@@ -14,7 +14,7 @@ import tqdm
 
 file_path = 'D:\\deep-reinforcement-learning\\thesis-project\\matrices\\10_dim.txt'
 rng = np.random.default_rng()
-systems, system_solutions = rjd.read_file(file_path, 10)
+systems, system_solutions = rjd.read_matrix_file(file_path, 10)
 n = systems.shape[1]
 results = {}
 for i in tqdm.tqdm(range(systems.shape[0]), total=systems.shape[0]):

@@ -24,7 +24,7 @@
       "name": "Python Debugger: test_scaler arguments",
       "type": "debugpy",
       "request": "launch",
-      "program": "python\\results\\scaler_results.py",
+      "program": "python\\scaling\\scaler_results.py",
       "console": "integratedTerminal",
       "args": [
         "--start-size=50",
@@ -33,6 +33,15 @@
         "--attempts=50",
         "--directory=D:\\deep-reinforcement-learning\\thesis-project\\results",
         "--ignore-newton"
+      ]
+    },
+    {
+      "name": "Python Debugger: power_flow_net arguments",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "python\\nns\\power_flow_net.py",
+      "console": "integratedTerminal",
+      "args": [
       ]
     },
     {
