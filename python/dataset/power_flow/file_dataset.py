@@ -8,13 +8,13 @@ from torch.utils.data import Dataset
 class FileDataset(Dataset):
     """Dataset wrapper over a list of files where each file contains multiple systems."""
     
-    def __init__(self, data_files, entries_per_file, dimension, lru_file_capacity, transform=None):
+    def __init__(self, data_files, entries_per_file, size, lru_file_capacity, transform=None):
         """Initializes the FileDataset.
 
         Args:
             data_files : The list of file names. 
             entries_per_file : The number of systems in each file.
-            dimension : The dimension size of each of the systems.
+            size : The node count of each of the graphs.
             lru_file_capacity : How many files, and their systems, to keep in an LRU cache in memory
             transform (optional): The pytorch transformer. Defaults to None.
         """
@@ -25,7 +25,7 @@ class FileDataset(Dataset):
         else:
             self.files = data_files
         self.entries_per_file = entries_per_file
-        self.dimension = dimension
+        self.size = size
         self.cache = LRUCache(lru_file_capacity)
         self.transform = transform
         
@@ -47,19 +47,19 @@ class FileDataset(Dataset):
         Returns:
             The system and solution at the index.
         """
-        systems, solutions = None, None
+        inputs, solution_counts = None, None
         file_index = int(index / self.entries_per_file)
         item = self.cache.get(file_index)
         if item is None:
             npz_file = np.load(self.files[file_index])
-            systems, solutions = npz_file['systems'], npz_file['solutions']
-            systems = [torch.from_numpy(system.flatten()).float() for system in systems]
-            solutions = [torch.tensor([solution]).float() for solution in solutions] 
-            self.cache.put(file_index, (systems, solutions))
+            systems, solution_counts = npz_file['systems'], npz_file['solution_counts']
+            inputs = [torch.from_numpy(system.flatten()).float() for system in systems]
+            solution_counts = [torch.tensor([solution]).float() for solution in solution_counts] 
+            self.cache.put(file_index, (inputs, solution_counts))
         else:
-            systems, solutions = item
+            inputs, solution_counts = item
         
-        system, solution = systems[index % self.entries_per_file], solutions[index % self.entries_per_file]
+        input, solution = inputs[index % self.entries_per_file], solution_counts[index % self.entries_per_file]
         if self.transform:
-            system, solution = self.transform((system, solution))
-        return system, solution
+            input, solution = self.transform((input, solution))
+        return input, solution
