@@ -57,7 +57,7 @@ def read_power_flow_file(file_name, size):
     
     # can then use knowledge of given dimension to figure out how many systems there are
     systems, solutions = read_file(file_name)
-    edge_count = int(comb(size - 1, 2))
+    edge_count = int(comb(size, 2))
     num_systems = int(len(systems) / edge_count)
     systems = systems.reshape((num_systems, edge_count))
     return (systems, solutions)

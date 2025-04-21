@@ -79,30 +79,3 @@ if not args.ignore_newton:
         args.attempts, seed_sequence.entropy)
     np.savez(os.path.join(args.directory, file), time_taken=newton_results[:, :, 0], traces_diff_norm=newton_results[:, :, 1], \
         summation_norm=newton_results[:, :, 2], radius=newton_results[:, :, 3], successes=newton_results[:, :, 4])
-
-# averaged_results = np.average(results, axis=1)
-
-# figure, (time_plot, trace_plot, identity_plot, radius_plot) = plt.subplots(4)
-# figure.suptitle('Scaler results with attempts={0}'.format(args.attempts))
-
-# time_plot.set_title('Average time taken to minimize')
-# time_plot.set(xlabel='System size', ylabel='Time (s)')
-# time_plot.plot(n_range, averaged_results[:, 0])
-
-# trace_plot.set_title('Average distance of traces-vector from 1-vector')
-# trace_plot.set(xlabel='System size', ylabel='Distance')
-# trace_plot.plot(n_range, averaged_results[:, 1])
-
-# identity_plot.set_title('Average distance of scaled-summation matrix from identity matrix')
-# identity_plot.set(xlabel='System size', ylabel='Distance')
-# identity_plot.plot(n_range, averaged_results[:, 2])
-
-# radius_plot.set_title('Average radius of scaler solution point')
-# radius_plot.set(xlabel='System size', ylabel='radius')
-# radius_plot.plot(n_range, averaged_results[:, 3])
-
-# file = '{0}.{1}.{2}.{3}.{4}.png'.format(args.start_size, args.stop_size, args.step, args.attempts, seed_sequence.entropy)
-# file = os.path.join(args.directory, file)
-# plt.savefig(file)
-# if args.display:
-#     plt.show()

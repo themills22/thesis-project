@@ -21,18 +21,30 @@
       ]
     },
     {
-      "name": "Python Debugger: test_scaler arguments",
+      "name": "Python Debugger: scaler_results arguments",
       "type": "debugpy",
       "request": "launch",
       "program": "python\\scaling\\scaler_results.py",
       "console": "integratedTerminal",
       "args": [
-        "--start-size=50",
-        "--stop-size=51",
+        "--start-size=500",
+        "--stop-size=510",
         "--step=20",
         "--attempts=50",
         "--directory=D:\\deep-reinforcement-learning\\thesis-project\\results",
         "--ignore-newton"
+      ]
+    },
+    {
+      "name": "Python Debugger: process_results arguments",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "python\\scaling\\process_results.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--bfgs=D:\\deep-reinforcement-learning\\thesis-project\\results\\test-scaler\\bfgs.10.250.20.50.226502390332954714580540253289295598598.npz",
+        "--newton-cg=D:\\deep-reinforcement-learning\\thesis-project\\results\\test-scaler\\newton-cg.10.250.20.50.226502390332954714580540253289295598598.npz",
+        "--display"
       ]
     },
     {
