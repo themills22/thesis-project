@@ -1,5 +1,5 @@
 #import packages
-using HomotopyContinuation, LinearAlgebra, DataStructures, Dates
+using HomotopyContinuation, LinearAlgebra, DataStructures, Dates, NPZ
 
 # order of arguments: <seed> <number of iterations>
 
@@ -7,7 +7,7 @@ using HomotopyContinuation, LinearAlgebra, DataStructures, Dates
 n = 8;
 
 #number of trials
-its = 100000;
+its = 100000
 
 #define variables
 @var x[1:n]
@@ -39,9 +39,7 @@ start_sols = [S[m[i][1]] for i in 1:length(m)];
 
 
 #record # of real solutions in reals, # of solutions in sols and if there are any instances
-#where not all solutions are found, save parameters in bad_params
 reals=[];
-bad_params = [];
 sols=[];
 all_params = [];
 
@@ -61,24 +59,15 @@ for i in 1:its
   #solve system
   R1 = solve(F, start_sols; start_parameters=start_param, target_parameters=new_params, show_progress =false)
   S1 = solutions(R1)
-  append!(reals, length(real_solutions(R1)))
+  append!(reals, 2 * length(real_solutions(R1)))
   append!(sols, length(S1))
-  # if length(S1)<2^(n-1)
-  #   append!(bad_params, [new_params])
-  # end
 
   if i % 100 == 0
     println("Iteration: ", i)
 
-    local file_name = "matrices\\data\\" * Dates.format(now(UTC), "yyyy-mm-dd-HH-MM-SS-sss") * ".txt"
-    open(file_name, "w") do file
-      show(file, all_params)
-      println(file)
-      show(file, reals)
-    end
-
+    local file_name = "data\\power-flow\\ellipse\\" * n * "\\" * Dates.format(now(UTC), "yyyy-mm-dd-HH-MM-SS-sss") * ".npz"
+    npzwrite(file_name, Dict("systems" => all_params, "solution_counts" => reals, "sols" => sols))
     empty!(reals)
-    empty!(bad_params)
     empty!(sols)
     empty!(all_params)
   end
