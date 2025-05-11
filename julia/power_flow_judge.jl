@@ -8,6 +8,13 @@ n = 4;
 @var x[1:n]
 @var y[1:n]
 
+#number of trials
+its = 1000000
+
+#define variables
+@var x[1:n]
+@var y[1:n]
+
 #define variables and equations to be repeatedly solved
 #define the edge variables, cheat to make it match an undirected graph edge matrix
 b = Array{Variable}(undef, n, n)
@@ -17,49 +24,82 @@ for (i, j) in collect(combinations(1:n, 2))
     b[j, i] = v
 end
 
-reference_bus = [ x[1], y[1] ]
-b_flat = [b[i, j] for (i, j) in collect(combinations(1:n, 2))]
-parameters = vcat(reference_bus, b_flat)
+
+function create_susceptance(k, m)
+    if m == 1
+        return b[k, m] * y[k]
+    end
+
+    if m == k
+        return 0
+    end
+
+    return b[k, m] * (x[m] * y[k] - x[k] * y[m])
+end
+
 power_equations = Array{Expression}(undef, n - 1)
 for i in 1:n - 1
     k = i + 1
-    p = [k != m ? b[k, m] * (x[m] * y[k] - x[k] * y[m]) : 0 for m in 1:n]
+    p = [create_susceptance(k, m) for m in 1:n]
     power_equations[i] = sum(p)
 end
 
 constraint_equations = [x[i] ^ 2 + y[i] ^ 2 - 1 for i in 2:n]
 
+b_flat = [b[i, j] for (i, j) in collect(combinations(1:n, 2))]
 variables = vcat(view(x, 2:n), view(y, 2:n))
 equations = vcat(power_equations, constraint_equations)
 
 #define system of equations
-F = System(equations; variables = variables, parameters = parameters);
+F = System(equations; variables = variables, parameters = b_flat);
 
 #solve system once with generic complex parameters
-start_param = vcat([1, 0], rand(Complex{Float64}, length(b_flat)));
-R = solve(F(variables, start_param), show_progress = false);
+start_parameters = rand(Complex{Float64}, length(b_flat));
+R = solve(F(variables, start_parameters), show_progress = false);
 S = solutions(R);
 
-#select solutions to start_param up to +/- symmetry
-Gr = GroupActions(x -> (-1*x ));
-m = multiplicities(S, group_action = Gr);
-start_sols = [S[m[i][1]] for i in 1:length(m)];
+base_directory = "data\\power-flow\\graph"
+judge_directory = joinpath(base_directory, string(n), "judged")
+guess_directory = joinpath(base_directory, string(n), "guesses")
+guess_path = argmax(mtime, readdir(guess_directory, join=true))
 
-directory = "data\\power-flow\\guesses\\4\\"
-save_directory = "data\\power-flow\\judged\\4\\"
+npz = npzread(guess_path)
+initial_counts = Vector{Int64}()
+final_counts = Vector{Int64}()
+initial_systems = npz["initial_systems"]
+final_systems = npz["systems"]
+guess_counts = npz["solution_counts"]
+for i in axes(final_systems)[1]
+    initial_parameters = initial_systems[i, :]
+    R_initial = solve(F, S; start_parameters=start_parameters, target_parameters=initial_parameters, show_progress=false)
+    push!(initial_counts, length(real_solutions(R_initial)))
 
-for file in readdir(directory)
-    npz = npzread(joinpath(directory, file))
-    actual_counts = []
-    systems = npz["systems"]
-    guess_counts = npz["solution_counts"]
-    for i in axes(systems)[1]
-        target_parameters = vcat([1, 0], systems[i, :])
-        R1 = solve(F, start_sols; start_parameters=start_param, target_parameters=target_parameters, show_progress=false)
-        S1 = solutions(R1)
-        actual_count = 2 * length(real_solutions(R1))
-        append!(actual_counts, actual_count)
-    end
-
-    npzwrite(joinpath(save_directory, file), Dict("systems" => systems, "solution_counts" => actual_counts, "guess_counts" => guess_counts))
+    final_parameters = final_systems[i, :]
+    R_final = solve(F, S; start_parameters=start_parameters, target_parameters=final_parameters, show_progress=false)
+    push!(final_counts, length(real_solutions(R_final)))
 end
+
+judge_file = splitdir(guess_path)[2]
+npzwrite(joinpath(judge_directory, judge_file), Dict("initial_counts" => initial_counts, "guess_counts" => guess_counts,
+    "solution_counts" => final_counts, "initial_systems" => initial_systems, "systems" => final_systems))
+
+# for file in readdir(guess_directory, join=true)
+#     npz = npzread(file)
+#     initial_counts = Vector{Int64}()
+#     final_counts = Vector{Int64}()
+#     initial_systems = npz["initial_systems"]
+#     final_systems = npz["systems"]
+#     guess_counts = npz["solution_counts"]
+#     for i in axes(final_systems)[1]
+#         initial_parameters = initial_systems[i, :]
+#         R_initial = solve(F, S; start_parameters=start_parameters, target_parameters=initial_parameters, show_progress=false)
+#         push!(initial_counts, length(real_solutions(R_initial)))
+
+#         final_parameters = final_systems[i, :]
+#         R_final = solve(F, S; start_parameters=start_parameters, target_parameters=final_parameters, show_progress=false)
+#         push!(final_counts, length(real_solutions(R_final)))
+#     end
+
+#     npzwrite(joinpath(judge_directory, file), Dict("initial_counts" => initial_counts, "guess_counts" => guess_counts,
+#         "solution_counts" => final_counts, "initial_systems" => initial_systems, "systems" => final_systems))
+# end

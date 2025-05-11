@@ -17,6 +17,7 @@ class GraphNet(nn.Module):
             nn.Linear(100, 100),
             nn.ReLU(),
             nn.Linear(100, 1),
+            nn.Hardtanh(-100, 100)
         )
         self.size = size
         

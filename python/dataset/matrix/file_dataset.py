@@ -5,10 +5,11 @@ import torch
 from python.dataset.lru_cache import LRUCache
 from torch.utils.data import Dataset
 
+# TODO: make this class match the matrix dataset one; can probably do some class inheritance as well :)
 class FileDataset(Dataset):
     """Dataset wrapper over a list of files where each file contains multiple systems."""
     
-    def __init__(self, data_files, entries_per_file, dimension, lru_file_capacity, transform=None):
+    def __init__(self, data_files, system_mapping, entries_per_file, dimension, lru_file_capacity, transform=None):
         """Initializes the FileDataset.
 
         Args:
@@ -24,6 +25,7 @@ class FileDataset(Dataset):
             self.files = [os.path.join(data_files, file) for file in self.files]
         else:
             self.files = data_files
+        self.system_mapping = system_mapping
         self.entries_per_file = entries_per_file
         self.dimension = dimension
         self.cache = LRUCache(lru_file_capacity)
@@ -36,7 +38,7 @@ class FileDataset(Dataset):
             The number of all the systems contained in the dataset.
         """
         
-        return len(self.files) * self.entries_per_file
+        return len(self.system_mapping)
     
     def __getitem__(self, index):
         """Gets the system and solution count at the given index.

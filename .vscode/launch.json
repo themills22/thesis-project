@@ -69,6 +69,52 @@
         "--num-matrices=10",
         "--gamma=0.05"
       ]
-    }
+    },
+    {
+      "name": "Python Debugger: net_train arguments",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "python\\nn\\net_train.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--batch-size=64",
+        "--type=graph",
+        "--size=4",
+        "--data-folder=D:\\deep-reinforcement-learning\\thesis-project\\data\\power-flow\\graph\\4",
+        "--data-folder=D:\\deep-reinforcement-learning\\thesis-project\\data\\power-flow\\graph\\4\\judged",
+        "--model-folder=D:\\deep-reinforcement-learning\\thesis-project\\model\\power-flow\\graph\\4",
+        "--model-to-load=D:\\deep-reinforcement-learning\\thesis-project\\model\\power-flow\\graph\\4\\2025-05-05-19-04-28.pt",
+        "--epochs=5",
+        "--epoch-save=1",
+        "--print-interval=100000",
+        "--input-norm-cap=300"
+      ]
+    },
+    {
+      "name": "Python Debugger: power_flow_optimizer arguments",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "python\\optimizers\\power_flow_optimizer.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--size=4",
+        "--results-folder=D:\\deep-reinforcement-learning\\thesis-project\\data\\power-flow\\graph\\4",
+        "--model-to-load=D:\\deep-reinforcement-learning\\thesis-project\\model\\power-flow\\graph\\4\\2025-05-05-19-04-28.pt",
+        "--count-cutoff=18",
+        "--improved-system-cutoff=10000",
+        "--input-norm-cap=300"
+      ]
+    },
+    {
+      "name": "Python Debugger: judge arguments",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "python\\optimizers\\judge.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--count-cutoff=18",
+        "D:\\deep-reinforcement-learning\\thesis-project\\data\\power-flow\\graph\\4\\judged",
+      ]
+    },
   ]
 }

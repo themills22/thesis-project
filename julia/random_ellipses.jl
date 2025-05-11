@@ -7,7 +7,7 @@ using HomotopyContinuation, LinearAlgebra, DataStructures, Dates, NPZ
 n = 8;
 
 #number of trials
-its = 100000
+its = 1 
 
 #define variables
 @var x[1:n]
@@ -61,6 +61,9 @@ for i in 1:its
   S1 = solutions(R1)
   append!(reals, 2 * length(real_solutions(R1)))
   append!(sols, length(S1))
+
+  show(R1)
+  show(length(real_solutions(R1)))
 
   if i % 100 == 0
     println("Iteration: ", i)
