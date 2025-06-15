@@ -64,20 +64,32 @@ guess_directory = joinpath(base_directory, string(n), "guesses")
 guess_path = argmax(mtime, readdir(guess_directory, join=true))
 
 npz = npzread(guess_path)
-initial_counts = Vector{Int64}()
-final_counts = Vector{Int64}()
 initial_systems = npz["initial_systems"]
 final_systems = npz["systems"]
 guess_counts = npz["solution_counts"]
-for i in axes(final_systems)[1]
-    initial_parameters = initial_systems[i, :]
-    R_initial = solve(F, S; start_parameters=start_parameters, target_parameters=initial_parameters, show_progress=false)
-    push!(initial_counts, length(real_solutions(R_initial)))
+function judge(index_chunk)
+    initial_counts = Vector{Int64}()
+    final_counts = Vector{Int64}()
+    for i in index_chunk
+        initial_parameters = initial_systems[i, :]
+        R_initial = solve(F, S; start_parameters=start_parameters, target_parameters=initial_parameters, show_progress=false)
+        push!(initial_counts, length(real_solutions(R_initial)))
 
-    final_parameters = final_systems[i, :]
-    R_final = solve(F, S; start_parameters=start_parameters, target_parameters=final_parameters, show_progress=false)
-    push!(final_counts, length(real_solutions(R_final)))
+        final_parameters = final_systems[i, :]
+        R_final = solve(F, S; start_parameters=start_parameters, target_parameters=final_parameters, show_progress=false)
+        push!(final_counts, length(real_solutions(R_final)))
+    end
+
+    return initial_counts, final_counts
 end
+
+index_chunks = Iterators.partition(axes(initial_systems)[1], length(initial_systems) ÷ Threads.nthreads())
+judge_tasks = map(index_chunks) do index_chunk
+    Threads.@spawn judge(index_chunk)
+end
+counts = fetch.(judge_tasks)
+initial_counts = collect(Iterators.flatten(map(x -> x[1], counts)))
+final_counts = collect(Iterators.flatten(map(x -> x[2], counts)))
 
 judge_file = splitdir(guess_path)[2]
 npzwrite(joinpath(judge_directory, judge_file), Dict("initial_counts" => initial_counts, "guess_counts" => guess_counts,
