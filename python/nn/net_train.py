@@ -13,13 +13,35 @@ from python.nn.graph_net import GraphNet
 from scipy.special import comb
 from torchvision.transforms import v2
 
-def create_graph_settings(paths, size, input_norm_cap):
+def create_graph_net(paths, size, input_norm_cap):
+    """Creates the graph NN.
+
+    Args:
+        paths : The paths to the data.
+        size : The number of parameters.
+        input_norm_cap : The input norm limit.
+
+    Returns:
+        Required information to train the model.
+    """
+    
     size = int(comb(size, 2))
     dataset = GraphDataset(paths, size, input_norm_cap)
     model = GraphNet(size)
     return size, dataset, model
 
 def train(model, device, train_loader, optimizer, loss_function, print_batch_interval=None):
+    """Trains the model with the given settings.
+
+    Args:
+        model : The model.
+        device : The device to place the data on.
+        train_loader : The training dataset loader.
+        optimizer : The optimizer to use on the model.
+        loss_function : The loss function to use on the model.
+        print_batch_interval : How often to print training status. Defaults to None.
+    """
+    
     model.train()
     for batch_index, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
@@ -32,6 +54,16 @@ def train(model, device, train_loader, optimizer, loss_function, print_batch_int
             print('Batch index: {}, Loss: {}'.format(batch_index, loss.item()))
             
 def test(model, device, test_loader, loss_function, epoch):
+    """Tests the model with the given settings.
+
+    Args:
+        model : The model.
+        device : The device to place the data on.
+        test_loader : The test dataset loader.
+        loss_function : The loss function to use on the model.
+        epoch : The current epoch.
+    """
+    
     model.eval()
     test_loss = 0
     with torch.no_grad():
@@ -44,6 +76,8 @@ def test(model, device, test_loader, loss_function, epoch):
     return test_loss
 
 def main():
+    """Trains the power flow solution-count graph NN."""
+    
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch-size', help='The batch size to test and train with.', type=int, default=64)
     parser.add_argument('--type', help='The model type: graph or matrix.', required=True, choices=['graph'])
@@ -74,7 +108,7 @@ def main():
         train_kwargs.update(cuda_kwargs)
         test_kwargs.update(cuda_kwargs)
         
-    size, dataset, model = create_graph_settings(args.data_folder, args.size, args.input_norm_cap)
+    size, dataset, model = create_graph_net(args.data_folder, args.size, args.input_norm_cap)
     train_dataset, test_dataset = torch.utils.data.random_split(dataset, [0.8, 0.2])
     train_loader = torch.utils.data.DataLoader(train_dataset, **train_kwargs)
     test_loader = torch.utils.data.DataLoader(test_dataset, **test_kwargs)

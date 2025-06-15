@@ -16,16 +16,42 @@ from scipy.special import comb
 Results = namedtuple('Results', ['initial_systems', 'final_systems', 'solution_counts'])
 PoolOptions = namedtuple('PoolOptions', ['args', 'device', 'optimize_options', 'constraints', 'systems_cap', 'systems_cutoff'])
 
-class PowerFlowNetOptimizer:
+class PowerFlowNetFunction:
+    """Auxiliary class to use for optimizing over a power-flow NN."""
+    
     def __init__(self, model):
+        """Initializes the function instance.
+
+        Args:
+            model : The model to use.
+        """
+        
         self.model = model
         
     def f(self, x):
+        """Runs given input on the model.
+
+        Args:
+            x : The input.
+
+        Returns:
+            The output of the model.
+        """
+        
         self.model.zero_grad()
         x = torch.from_numpy(x).float()
         return -self.model.forward(x).item()
     
     def jac(self, x):
+        """Gets the jacobian of the model for the given input.
+
+        Args:
+            x : The input.
+
+        Returns:
+            The jacobian of the model.
+        """
+        
         self.model.zero_grad()
         x = torch.from_numpy(x).float().requires_grad_(True)
         output = self.model.forward(x)
@@ -33,6 +59,15 @@ class PowerFlowNetOptimizer:
         return -x.grad.detach().cpu().numpy()
     
     def f_and_jac(self, x):
+        """Runs given input on the model and gets the output and jacobian.
+
+        Args:
+            x : The input.
+
+        Returns:
+            The output and jacobian of the model.
+        """
+        
         self.model.zero_grad()
         x = torch.from_numpy(x).float().requires_grad_(True)
         output = self.model.forward(x)
@@ -41,7 +76,14 @@ class PowerFlowNetOptimizer:
     
 
 class Constraints:
+    """Represents a norm-constraint for an input."""
+    
     def __init__(self, upper_bound):
+        """Initializes the contstraints.
+
+        Args:
+            upper_bound : The bound for the norm-constraint.
+        """
         self.last_x = (None, -1)
         self.last_norm_squared = (None, -1)
         self.last_jac = (None, -1)
@@ -52,7 +94,7 @@ class Constraints:
         """Gets the version of cached values to grab based off equality of x with last_x.
 
         Args:
-            x (N - 1) array_like: The point to compare against last_x.
+            x (N) array_like: The point to compare against last_x.
 
         Returns:
             The version of cached values to use.
@@ -67,7 +109,7 @@ class Constraints:
 
         Args:
             version (int) : The version to check against.
-            x (N - 1) array_like : The x to use to compute the new x if required.
+            x (N) array_like : The x to use to compute the value.
 
         Returns:
             (N) array_like : The x to use.
@@ -80,6 +122,16 @@ class Constraints:
         return x
     
     def _get_norm_squared(self, version, x):
+        """Gets the cached value of norm squared to use or calculates it.
+
+        Args:
+            version (int) : The version to check against.
+            x (N) array_like : The x to use to compute the value.
+
+        Returns:
+            The norm squared.
+        """
+        
         last_norm_squared, last_version = self.last_norm_squared
         if last_version == version:
             return last_norm_squared
@@ -88,6 +140,16 @@ class Constraints:
         return new_norm_squared
     
     def _get_jac(self, version, x):
+        """Gets the cached value of the jacobian to use or calculates it.
+
+        Args:
+            version (int) : The version to check against.
+            x (N) array_like : The x to use to compute the value.
+
+        Returns:
+            (N) array_like : The jacobian to use.
+        """
+        
         last_jac, last_version = self.last_jac
         if last_version == version:
             return last_jac
@@ -96,26 +158,74 @@ class Constraints:
         return new_jac
     
     def _f(self, x):
+        """Computes the value of the function.
+
+        Args:
+            x (N) array_like : The x to use to compute the value.
+
+        Returns:
+            The norm-squared function value.
+        """
+        
         version = self._get_version(x)
         x = self._get_x(version, x)
         return self._get_norm_squared(version, x)
     
     def _jac(self, x):
+        """Computes the value of the jacobian.
+
+        Args:
+            x (N) array_like : The x to use to compute the value.
+
+        Returns:
+            The jacobian of the norm-squared function.
+        """
+        
         version = self._get_version(x)
         x = self._get_x(version, x)
         return self._get_jac(version, x)
     
     def _hess(self, x, v):
+        """Computes the value of the hessian.
+
+        Args:
+            x (N) array_like : The x to use to compute the value.
+            v array_like : The magnitude (I don't really know what this is :)).
+
+        Returns:
+            The hessian of the norm-squared function.
+        """
+        
         if self.hess is None:
             self.hess = 2 * np.identity(len(x))
         return v[0] * self.hess
     
 def save_npz_file(pool_id, results, folder):
+    """Saves results to an NPZ file.
+
+    Args:
+        pool_id : The pool ID of the caller.
+        results : The results to save.
+        folder : The folder to save to.
+    """
+    
     file_name = dt.datetime.now().strftime('%Y-%m-%d-%H-%M-%S') + '-{}.npz'.format(pool_id)
     np.savez(os.path.join(folder, file_name), systems=results.final_systems, solution_counts=results.solution_counts, \
         initial_systems=results.initial_systems)
     
 def optimize_constrained(optimizer, constraints, x0, options):
+    """Optimizes the optimizer with the given constraints.
+
+    Args:
+        optimizer : The optimizer.
+        constraints : The constraints.
+        x0 : The initial point.
+        options : The optimization options.
+
+    Returns:
+        The optimization results.
+    """
+    
     with warnings.catch_warnings():
         warnings.filterwarnings('error', category=RuntimeWarning)
         warnings.filterwarnings('ignore', category=UserWarning)
@@ -128,6 +238,17 @@ def optimize_constrained(optimizer, constraints, x0, options):
             return OptimizeResult(x=np.zeros(1), success=False, fun=0)
 
 def optimize(optimizer, x0, options):
+    """Optimizes the optimizer unconstrainted.
+
+    Args:
+        optimizer : The optimizer.
+        x0 : The initial point.
+        options : The optimization options.
+
+    Returns:
+        The optimization results.
+    """
+    
     with warnings.catch_warnings():
         warnings.filterwarnings('error', category=RuntimeWarning)
         warnings.filterwarnings('ignore', category=UserWarning)
@@ -139,12 +260,22 @@ def optimize(optimizer, x0, options):
             return OptimizeResult(x=np.zeros(1), success=False, fun=0)
         
 def pool_main(options, pool_id):
+    """The main function for each pool.
+
+    Args:
+        options : The options to use.
+        pool_id : The pool ID.
+
+    Returns:
+        The optimization results.
+    """
+    
     model = GraphNet(int(comb(options.args.size, 2)))
     model.load_state_dict(torch.load(options.args.model_to_load))
     # model = model.to(options.device)
     
     rng = np.random.default_rng()
-    optimizer = PowerFlowNetOptimizer(model)
+    optimizer = PowerFlowNetFunction(model)
     minimize = lambda input: optimize_constrained(optimizer, options.constraints, input, options.optimize_options) \
         if options.args.input_norm_squared_cap else optimize(optimizer, input, options.optimize_options)
     results = Results(np.zeros((options.systems_cutoff, model.size)), np.zeros((options.systems_cutoff, model.size)), np.zeros(options.systems_cutoff))
@@ -168,6 +299,8 @@ def pool_main(options, pool_id):
     return Results(results.initial_systems[0:end_index], results.final_systems[0:end_index], results.solution_counts[0:end_index])
             
 def main():
+    """Sets up the options to pass to the pool_main function."""
+    
     parser = argparse.ArgumentParser()
     parser.add_argument('--size', help='The network node size or matrix dimension.', required=True, type=int)
     parser.add_argument('--results-folder', help='The directory where the files to train on live.', required=True, type=ph.is_valid_file)
@@ -189,7 +322,7 @@ def main():
         optimize_options['xtol'] = 1e-4
     
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    constraints = Constraints(args.input_norm_squared_cap).constraints if args.input_norm_squared_cap else None
+    constraints = Constraints(args.input_norm_squared_cap).constraints if args.input_norm_squared_cap else None # todo: this is wrong, there needs to be constraints instance for pool as the instance relies on cached values
     cpu_count = args.cpu_count if args.cpu_count else os.cpu_count()
     per_process_systems_count = int(args.total_systems / cpu_count)
     all_options = [PoolOptions(args, device, optimize_options, constraints, per_process_systems_count, args.systems_per_file) \

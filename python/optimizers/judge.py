@@ -4,6 +4,8 @@ import os
 import python.parser_helpers as ph
 
 def main():
+    """Inspects Julia judge-solution-counts files."""
+    
     parser = argparse.ArgumentParser()
     parser.add_argument('paths', nargs='+', help='The paths to judge.', type=ph.is_valid_file)
     parser.add_argument('--count-cutoff', help='The number of guessed solutions a system must meet to be saved.', \
