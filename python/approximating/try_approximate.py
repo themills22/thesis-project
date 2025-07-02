@@ -1,12 +1,7 @@
-import approximator
-import argparse
+import python.approximating.approximator as approximator
 import json
-import matplotlib.pyplot as plt
 import numpy as np
-import os
-import parser_helpers as ph
 import python.dataset.read_julia_data as rjd
-import time
 import tqdm
 
 # point of this file does not reflect the file name

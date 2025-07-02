@@ -1,4 +1,4 @@
-import approximator
+import python.approximating.approximator as approximator
 import argparse
 import json
 import matplotlib.pyplot as plt
