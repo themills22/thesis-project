@@ -43,9 +43,13 @@ def enumerate_systems(args, rng):
 def generate_point_caches(args, rng):
     dimension = args.dimension
     return [approximator.PointCache(rng.normal(0, 1, dimension)) for _ in range(args.point_count)]
+
+def normalize(data):
+    return (data - min(data))/(max(data) - min(data))
     
 def main():
     is_positive_int = lambda value: ph.check_greater_than_int(value, 0)
+    is_none_or_non_negative_int = lambda value: not value or ph.check_greater_than_int(value, -1)
     parser = argparse.ArgumentParser()
     parser.add_argument('--dimension', help='The dimension of the systems. Must be at least three.', \
         required=True, type=lambda value: ph.check_greater_than_int(value, 2))
@@ -60,20 +64,19 @@ def main():
         type=ph.is_valid_file)
     parser.add_argument('--compare-coercion', help='Compare the coercion values for all points.', action='store_true')
     parser.add_argument('--results-folder', help='The directory to save the files.', required=True, type=ph.is_valid_file)
+    parser.add_argument('--seed', help='The seed to use.', type=is_none_or_non_negative_int)
     
     args = parser.parse_args()
     if args.perturb >= (1 / args.dimension):
         raise ValueError('The perturbation factor >= (1 / n), {}'.format(1 / args.dimension))
-    # if args.point_count <= np.pow(args.dimension, 4):
-    #     raise ValueError('Count of points must be > n^4')
-    # if args.matrix_count <= np.pow(args.dimension, 2):
-    #     raise ValueError('Count of matrices must be > n^2')
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(args.seed)
     total_dimension = (args.dimension, args.dimension, args.dimension)
     coercion_values = [] if args.compare_coercion else None
     results = []
-    start = time.time()
+    i = 1
     for system_cache in tqdm.tqdm(enumerate_systems(args, rng)):
+        print('System {}'.format(i))
+        i += 1
         point_caches = generate_point_caches(args, rng)
         system_approximation = 0
         for random_system in (args.perturb * rng.normal(0, 1, total_dimension) for _ in range(args.matrix_count)):
@@ -88,14 +91,13 @@ def main():
         results.append((system_cache.count, system_approximation))
     indices = [i for i in range(len(results))]
     counts, approximations = map(list, zip(*sorted(results)))
-    print(time.time() - start)
     print(approximations)
     print(counts)
     plt.title('Approximating')
     plt.ylabel('Count')
-    plt.plot(indices, approximations, color='green', label='Aprroximation')
+    plt.plot(indices, normalize(approximations), color='green', label='Aprroximation')
     if counts[0] is not None:
-        plt.plot(indices, counts, color='blue', label='Actual count')
+        plt.plot(indices, normalize(counts), color='blue', label='Actual count')
     plt.show()
 
 

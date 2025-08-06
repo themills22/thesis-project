@@ -134,10 +134,10 @@ class PointCache:
         sorted = np.sort(self.x_squared)
         start_index = next((i for i in range(self.dimension) if sorted[i] >= 1 / 2), None)
         if start_index is None:
-            return self.dimension - 1
+            return np.abs(self.x).argmax()
         entry_count = self.dimension - start_index
         median_index = start_index + (entry_count // 2 - (1 if entry_count % 2 == 0 else 0))
-        return median_index
+        return next((i for i in range(self.dimension) if sorted[median_index] == self.x_squared[i]))
     
     def get_x_squared_inverse(self, i):
         if self.x_squared_inverse[i] is not None:
@@ -191,20 +191,25 @@ class ApproximatorCache:
     
     def get_coercion_vector(self, i):
         g = self.get_g(i)
-        g_B_diagonals_diff = np.pow(g - self.random_system_cache.system_cache.get_B_diagonals(i), 2)
+        g_B_diagonals_diff = np.power(g - self.random_system_cache.system_cache.get_B_diagonals(i), 2)
         A_B_diagonals_diff = np.power(self.random_system_cache.get_A_diagonals(i) - self.random_system_cache.system_cache.get_B_diagonals(i), 2)
-        w = np.clip((-g_B_diagonals_diff + A_B_diagonals_diff) / 2, -10, 10)
-        return self.point_cache.x[i], w, np.exp(w), g, g_B_diagonals_diff, A_B_diagonals_diff
+        log_w = np.clip((-g_B_diagonals_diff + A_B_diagonals_diff) / 2, -10, 10)
+        return self.point_cache.x[i], log_w, g, g_B_diagonals_diff, A_B_diagonals_diff
         
     def get_coercion_matrix(self):
         yield from (self.get_coercion_vector(i) for i in range(self.random_system_cache.system_cache.dimension))
             
     def get_approximation(self):
-        _, log_w, w, _, _, _ = self.get_coercion_vector(self.point_cache.special_index)
+        _, log_w, _, _, _ = self.get_coercion_vector(self.point_cache.special_index)
         log_gradient = 1 / self.point_cache.x[self.point_cache.special_index]
         D_x_G = np.array(self.partial_results) 
         D_x_G[:, self.point_cache.special_index] += (self.random_system_cache.system_cache.scaled_solutions - self.results) * log_gradient
         D_x_G *= -2 * self.point_cache.get_x_squared_inverse(self.point_cache.special_index)
-        weight = np.clip(np.sum(log_w), -10, 10)
-        weight = w.prod() if -10 < weight and weight < 10 else np.exp(weight)
-        return np.abs(np.linalg.det(D_x_G)) * weight, D_x_G, log_w, w
+        # weight = np.clip(np.sum(log_w), -10, 10)
+        # weight = w.prod() if -10 < weight and weight < 10 else np.exp(weight)
+        det = np.abs(np.linalg.det(D_x_G))
+        weight = np.exp(log_w.sum())
+        approximation = det * weight
+        if approximation > 1000:
+            print('Found suspect approximation {}\n\tlog_gradient={}\n\tdet={}\n\tweight={}\n\tx={}'.format(approximation, log_gradient, det, weight, self.point_cache.x))
+        return approximation, D_x_G, log_w, log_w
