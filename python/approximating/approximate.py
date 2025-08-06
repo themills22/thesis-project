@@ -73,32 +73,32 @@ def main():
     total_dimension = (args.dimension, args.dimension, args.dimension)
     coercion_values = [] if args.compare_coercion else None
     results = []
+    random_system_output = np.zeros((args.dimension, args.dimension, args.dimension))
     i = 1
-    for system_cache in tqdm.tqdm(enumerate_systems(args, rng)):
-        print('System {}'.format(i))
-        i += 1
+    for system_cache in enumerate_systems(args, rng):
+        start = time.time()
         point_caches = generate_point_caches(args, rng)
         system_approximation = 0
         for random_system in (args.perturb * rng.normal(0, 1, total_dimension) for _ in range(args.matrix_count)):
-            random_system_cache = approximator.RandomSystemCache(system_cache, random_system)
+            random_system_cache = approximator.RandomSystemCache(system_cache, random_system, random_system_output)
             for point_cache in point_caches:
                 approimator_cache = approximator.ApproximatorCache(random_system_cache, point_cache)
-                if args.compare_coercion:
-                    coercion_values.extend(approimator_cache.get_coercion_matrix())
-                approximation, _, _, _ = approimator_cache.get_approximation()
+                approximation = approimator_cache.get_approximation()
                 system_approximation += approximation
         system_approximation *= (1 / args.point_count) * (1 / args.matrix_count)
         results.append((system_cache.count, system_approximation))
+        print('System {}, {}'.format(i, time.time() - start))
+        i += 1
     indices = [i for i in range(len(results))]
     counts, approximations = map(list, zip(*sorted(results)))
     print(approximations)
     print(counts)
-    plt.title('Approximating')
-    plt.ylabel('Count')
-    plt.plot(indices, normalize(approximations), color='green', label='Aprroximation')
-    if counts[0] is not None:
-        plt.plot(indices, normalize(counts), color='blue', label='Actual count')
-    plt.show()
+    # plt.title('Approximating')
+    # plt.ylabel('Count')
+    # plt.plot(indices, normalize(approximations), color='green', label='Aprroximation')
+    # if counts[0] is not None:
+    #     plt.plot(indices, normalize(counts), color='blue', label='Actual count')
+    # plt.show()
 
 
 if __name__ == '__main__':

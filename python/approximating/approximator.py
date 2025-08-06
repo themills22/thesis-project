@@ -159,16 +159,27 @@ class SystemCache:
         return self.B_psd_system_diagonals[i]
     
 class RandomSystemCache:
-    def __init__(self, system_cache, random_system):
+    def __init__(self, system_cache, random_system, random_system_output):
         self.system_cache = system_cache
-        self.A_system = self.system_cache.B_scaled_system + random_system
+        self.A_system = np.add(self.system_cache.B_scaled_system, random_system, out=random_system_output)
         self.A_psd_system_diagonals = [None for _ in range(self.system_cache.dimension)]
+        self.A_B_diagonals_diff = [None for _ in range(self.system_cache.dimension)]
         
     def get_A_diagonals(self, i):
         if self.A_psd_system_diagonals[i] is not None:
             return self.A_psd_system_diagonals[i]
         self.A_psd_system_diagonals[i] = np.array([np.dot(A[:, i], A[:, i]) for A in self.A_system])
         return self.A_psd_system_diagonals[i]
+    
+    def get_A_B_diagonals_diff(self, i):
+        if self.A_B_diagonals_diff[i] is not None:
+            return self.A_B_diagonals_diff[i]
+        B_diagonals = self.system_cache.get_B_diagonals(i)
+        A_diagonals = self.get_A_diagonals(i)
+        diff = A_diagonals - B_diagonals
+        diff = np.power(diff, 2, out=diff)
+        self.A_B_diagonals_diff[i] = diff
+        return diff
 
 class ApproximatorCache:
     def __init__(self, random_system_cache, point_cache):
@@ -178,38 +189,47 @@ class ApproximatorCache:
         # self.partial_results = np.array([A.T @ (A @ self.point_cache.x) for A in self.random_system_cache.A_system])
         self.partial_results = self.random_system_cache.A_system @ self.point_cache.x
         for i in range(len(self.partial_results)):
-            self.partial_results[i] = self.random_system_cache.A_system[i].T @ self.partial_results[i]
+            self.partial_results[i] @= self.random_system_cache.A_system[i]
         self.results = self.point_cache.x.T @ self.partial_results.T
+        self.results_difference = self.random_system_cache.system_cache.scaled_solutions - self.results
         self.G = [None for _ in range(self.random_system_cache.system_cache.dimension)]
     
     def get_g(self, i):
         if self.G[i] is not None:
             return self.G[i]
-        x_A_diagonals = self.random_system_cache.get_A_diagonals(i) * self.point_cache.get_x_squared_inverse(i)
-        self.G[i] = self.point_cache.get_x_squared_inverse(i) * (self.random_system_cache.system_cache.scaled_solutions - self.results + x_A_diagonals)
+        g = self.random_system_cache.get_A_diagonals(i) * self.point_cache.get_x_squared_inverse(i)
+        g += self.results_difference
+        g *= self.point_cache.get_x_squared_inverse(i)
+        self.G[i] = g
         return self.G[i]
     
-    def get_coercion_vector(self, i):
+    def get_log_w(self, i):
         g = self.get_g(i)
-        g_B_diagonals_diff = np.power(g - self.random_system_cache.system_cache.get_B_diagonals(i), 2)
-        A_B_diagonals_diff = np.power(self.random_system_cache.get_A_diagonals(i) - self.random_system_cache.system_cache.get_B_diagonals(i), 2)
-        log_w = np.clip((-g_B_diagonals_diff + A_B_diagonals_diff) / 2, -10, 10)
-        return self.point_cache.x[i], log_w, g, g_B_diagonals_diff, A_B_diagonals_diff
+        A_B_diagonals_diff = self.random_system_cache.get_A_B_diagonals_diff(i)
+        log_w = g - self.random_system_cache.system_cache.get_B_diagonals(i)
+        log_w = np.power(log_w, 2, out=log_w) 
+        log_w *= -1
+        log_w += A_B_diagonals_diff
+        log_w /= 2
+        return log_w
         
-    def get_coercion_matrix(self):
-        yield from (self.get_coercion_vector(i) for i in range(self.random_system_cache.system_cache.dimension))
-            
+    # note that calling this method once will modify the partial_results we calculated earlier
     def get_approximation(self):
-        _, log_w, _, _, _ = self.get_coercion_vector(self.point_cache.special_index)
+        log_w = self.get_log_w(self.point_cache.special_index)
         log_gradient = 1 / self.point_cache.x[self.point_cache.special_index]
-        D_x_G = np.array(self.partial_results) 
+        D_x_G = self.partial_results 
         D_x_G[:, self.point_cache.special_index] += (self.random_system_cache.system_cache.scaled_solutions - self.results) * log_gradient
         D_x_G *= -2 * self.point_cache.get_x_squared_inverse(self.point_cache.special_index)
         # weight = np.clip(np.sum(log_w), -10, 10)
         # weight = w.prod() if -10 < weight and weight < 10 else np.exp(weight)
-        det = np.abs(np.linalg.det(D_x_G))
-        weight = np.exp(log_w.sum())
-        approximation = det * weight
+        sign, logdet = np.linalg.slogdet(D_x_G)
+        weight = log_w.sum()
+        if weight < -10:
+            weight = -10
+        elif weight > 10:
+            weight = 10
+        weight = np.exp(weight)
+        approximation = np.exp(logdet) * weight
         if approximation > 1000:
-            print('Found suspect approximation {}\n\tlog_gradient={}\n\tdet={}\n\tweight={}\n\tx={}'.format(approximation, log_gradient, det, weight, self.point_cache.x))
-        return approximation, D_x_G, log_w, log_w
+            print('Found suspect approximation {}\n\tlog_gradient={}\n\tdet={}\n\tweight={}\n\tx={}'.format(approximation, log_gradient, np.exp(logdet), weight, self.point_cache.x))
+        return approximation
