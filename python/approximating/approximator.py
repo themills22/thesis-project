@@ -1,9 +1,9 @@
 import itertools as it
 import numpy as np
 import scipy as sp
-import tqdm
 
 from itertools import product
+from numba import njit
 from python.scaling.scaler import Scaler
 
 def scale_system(system):
@@ -33,12 +33,14 @@ def scale_system(system):
         scaled_system[i] = np.sqrt(scaled_solutions[i]) * (system[i] @ T)
     return scaled_system, scaled_solutions
 
-def get_system_diagonals(system):
+@njit
+def get_system_diagonals(system, i):
     dimension = len(system)
-    system_diagonals = np.zeros((dimension, dimension))
-    for i, j in product(range(dimension), range(dimension)):
-        system_diagonals[i, j] = system[i, j, j]
-    return system_diagonals
+    diagonals = np.zeros(dimension)
+    for j, A in zip(range(dimension), system):
+        a = np.ascontiguousarray(A[:, i])
+        diagonals[j] = np.dot(a, a)
+    return diagonals
 
 # def approximate(system, system_solutions, perturbation_factor, point_count, level_set_count, rng, fail_cap):
 #     """Approximates the system with the given system.
@@ -128,7 +130,7 @@ class PointCache:
         self.dimension = len(self.x)
         self.x_squared = np.power(x, 2)
         self.special_index = self._get_special_index()
-        self.x_squared_inverse = [None for _ in range(self.dimension)]
+        self.x_squared_inverse = 1 / self.x_squared
         
     def _get_special_index(self):
         sorted = np.sort(self.x_squared)
@@ -138,12 +140,6 @@ class PointCache:
         entry_count = self.dimension - start_index
         median_index = start_index + (entry_count // 2 - (1 if entry_count % 2 == 0 else 0))
         return next((i for i in range(self.dimension) if sorted[median_index] == self.x_squared[i]))
-    
-    def get_x_squared_inverse(self, i):
-        if self.x_squared_inverse[i] is not None:
-            return self.x_squared_inverse[i]
-        self.x_squared_inverse[i] = 1 / self.x_squared[i]
-        return self.x_squared_inverse[i]
     
 class SystemCache:
     def __init__(self, system, count):
@@ -155,7 +151,7 @@ class SystemCache:
     def get_B_diagonals(self, i):
         if self.B_psd_system_diagonals[i] is not None:
             return self.B_psd_system_diagonals[i]
-        self.B_psd_system_diagonals[i] = np.array([np.dot(B[:, i], B[:, i]) for B in self.B_scaled_system])
+        self.B_psd_system_diagonals[i] = get_system_diagonals(self.B_scaled_system, i)
         return self.B_psd_system_diagonals[i]
     
 class RandomSystemCache:
@@ -168,7 +164,7 @@ class RandomSystemCache:
     def get_A_diagonals(self, i):
         if self.A_psd_system_diagonals[i] is not None:
             return self.A_psd_system_diagonals[i]
-        self.A_psd_system_diagonals[i] = np.array([np.dot(A[:, i], A[:, i]) for A in self.A_system])
+        self.A_psd_system_diagonals[i] = get_system_diagonals(self.A_system, i)
         return self.A_psd_system_diagonals[i]
     
     def get_A_B_diagonals_diff(self, i):
@@ -177,9 +173,8 @@ class RandomSystemCache:
         B_diagonals = self.system_cache.get_B_diagonals(i)
         A_diagonals = self.get_A_diagonals(i)
         diff = A_diagonals - B_diagonals
-        diff = np.power(diff, 2, out=diff)
-        self.A_B_diagonals_diff[i] = diff
-        return diff
+        self.A_B_diagonals_diff[i] = np.power(diff, 2, out=diff)
+        return self.A_B_diagonals_diff[i]
 
 class ApproximatorCache:
     def __init__(self, random_system_cache, point_cache):
@@ -192,36 +187,35 @@ class ApproximatorCache:
             self.partial_results[i] @= self.random_system_cache.A_system[i]
         self.results = self.point_cache.x.T @ self.partial_results.T
         self.results_difference = self.random_system_cache.system_cache.scaled_solutions - self.results
+        self.partial_results, self.results, self.results_difference = \
+            ApproximatorCache._initialize_results(self.random_system_cache.A_system, self.point_cache.x, self.random_system_cache.system_cache.scaled_solutions)
         self.G = [None for _ in range(self.random_system_cache.system_cache.dimension)]
     
-    def get_g(self, i):
-        if self.G[i] is not None:
-            return self.G[i]
-        g = self.random_system_cache.get_A_diagonals(i) * self.point_cache.get_x_squared_inverse(i)
-        g += self.results_difference
-        g *= self.point_cache.get_x_squared_inverse(i)
-        self.G[i] = g
-        return self.G[i]
+    @njit
+    def _initialize_results(A_system, x, scaled_solutions):
+        dimension = len(x)
+        partial_results = np.zeros((dimension, dimension))
+        for i in range(len(x)):
+            partial_results[i] = A_system[i].T @ (A_system[i] @ x)
+        results = x.T @ partial_results.T
+        results_difference = scaled_solutions - results
+        return partial_results, results, results_difference
     
-    def get_log_w(self, i):
-        g = self.get_g(i)
-        A_B_diagonals_diff = self.random_system_cache.get_A_B_diagonals_diff(i)
-        log_w = g - self.random_system_cache.system_cache.get_B_diagonals(i)
-        log_w = np.power(log_w, 2, out=log_w) 
-        log_w *= -1
-        log_w += A_B_diagonals_diff
-        log_w /= 2
-        return log_w
-        
-    # note that calling this method once will modify the partial_results we calculated earlier
-    def get_approximation(self):
-        log_w = self.get_log_w(self.point_cache.special_index)
-        log_gradient = 1 / self.point_cache.x[self.point_cache.special_index]
-        D_x_G = self.partial_results 
-        D_x_G[:, self.point_cache.special_index] += (self.random_system_cache.system_cache.scaled_solutions - self.results) * log_gradient
-        D_x_G *= -2 * self.point_cache.get_x_squared_inverse(self.point_cache.special_index)
-        # weight = np.clip(np.sum(log_w), -10, 10)
-        # weight = w.prod() if -10 < weight and weight < 10 else np.exp(weight)
+    @njit
+    def _get_g(A_diagonals, results_difference, x_squared, x_squared_inverse):
+        return x_squared_inverse * (results_difference + (A_diagonals * x_squared))
+    
+    @njit
+    def _get_log_w(g, A_B_diagonals_diff, B_diagonals):
+        log_w = -1 * np.power(g - B_diagonals, 2)
+        return (log_w + A_B_diagonals_diff) / 2
+    
+    @njit
+    def _get_approximation(special_index, x, x_squared_inverse, log_w, partial_results, scaled_solutions, results):
+        log_gradient = 1 / x[special_index]
+        D_x_G = partial_results
+        D_x_G[:, special_index] += (scaled_solutions - results) * log_gradient
+        D_x_G *= -2 * x_squared_inverse[special_index]
         sign, logdet = np.linalg.slogdet(D_x_G)
         weight = log_w.sum()
         if weight < -10:
@@ -230,6 +224,26 @@ class ApproximatorCache:
             weight = 10
         weight = np.exp(weight)
         approximation = np.exp(logdet) * weight
+        return approximation, log_gradient, logdet, weight
+    
+    def get_g(self, i):
+        if self.G[i] is not None:
+            return self.G[i]
+        self.G[i] = ApproximatorCache._get_g(self.random_system_cache.get_A_diagonals(i), self.results_difference, self.point_cache.x_squared[i], self.point_cache.x_squared_inverse[i])
+        return self.G[i]
+    
+    def get_log_w(self, i):
+        g = self.get_g(i)
+        A_B_diagonals_diff = self.random_system_cache.get_A_B_diagonals_diff(i)
+        B_diagonals = self.random_system_cache.system_cache.get_B_diagonals(i)
+        return ApproximatorCache._get_log_w(g, A_B_diagonals_diff, B_diagonals)
+        
+    # note that calling this method once will modify the partial_results we calculated earlier
+    def get_approximation(self):
+        log_w = self.get_log_w(self.point_cache.special_index)
+        log_gradient = 1 / self.point_cache.x[self.point_cache.special_index]
+        approximation, log_gradient, logdet, weight = ApproximatorCache._get_approximation(self.point_cache.special_index, self.point_cache.x, \
+            self.point_cache.x_squared_inverse, log_w, self.partial_results, self.random_system_cache.system_cache.scaled_solutions, self.results)
         if approximation > 1000:
             print('Found suspect approximation {}\n\tlog_gradient={}\n\tdet={}\n\tweight={}\n\tx={}'.format(approximation, log_gradient, np.exp(logdet), weight, self.point_cache.x))
         return approximation
