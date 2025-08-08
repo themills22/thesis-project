@@ -1,6 +1,5 @@
-import approximator
+import approximator as ap
 import argparse
-import cProfile
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -8,7 +7,7 @@ import python.parser_helpers as ph
 import time
 import tqdm
 
-from itertools import product
+from typing import Generator
 
 def enumerate_systems(args, rng):
     total_dimension = (args.dimension, args.dimension, args.dimension)
@@ -33,16 +32,16 @@ def enumerate_systems(args, rng):
     systems_generator = enumerate_from_files() if args.data_path else enumerate_from_int()
     i = 0
     for system, count in systems_generator:
-        yield approximator.SystemCache(system, count)
+        scaled_system, scaled_solutions = ap.scale_system(system)
+        yield count, scaled_system, scaled_solutions
         
         # debug code to limit number of systems we approximate on
         i += 1
-        if i % 5 == 0:
+        if i % 10 == 0:
             return
         
 def generate_point_caches(args, rng):
-    dimension = args.dimension
-    return [approximator.PointCache(rng.normal(0, 1, dimension)) for _ in range(args.point_count)]
+    return [ap.create_point_cache(rng.normal(0, 1, args.dimension)) for _ in range(args.point_count)]
 
 def normalize(data):
     return (data - min(data))/(max(data) - min(data))
@@ -75,18 +74,19 @@ def main():
     results = []
     random_system_output = np.zeros((args.dimension, args.dimension, args.dimension))
     i = 1
-    for system_cache in enumerate_systems(args, rng):
+    for solution_count, scaled_system, scaled_solutions in enumerate_systems(args, rng):
         start = time.time()
         point_caches = generate_point_caches(args, rng)
         system_approximation = 0
         for random_system in (args.perturb * rng.normal(0, 1, total_dimension) for _ in range(args.matrix_count)):
-            random_system_cache = approximator.RandomSystemCache(system_cache, random_system, random_system_output)
+            system_cache = ap.create_system_cache(solution_count, scaled_system, scaled_solutions, random_system)
             for point_cache in point_caches:
-                approimator_cache = approximator.ApproximatorCache(random_system_cache, point_cache)
-                approximation = approimator_cache.get_approximation()
+                approximation, log_gradient, logdet, weight = ap.approximate(point_cache, system_cache)
+                # if approximation > 1000:
+                #     print('Found suspect approximation {}\n\tlog_gradient={}\n\tdet={}\n\tweight={}\n\tx={}'.format(approximation, log_gradient, np.exp(logdet), weight, self.point_cache.x))
                 system_approximation += approximation
         system_approximation *= (1 / args.point_count) * (1 / args.matrix_count)
-        results.append((system_cache.count, system_approximation))
+        results.append((solution_count, system_approximation))
         print('System {}, {}'.format(i, time.time() - start))
         i += 1
     indices = [i for i in range(len(results))]
