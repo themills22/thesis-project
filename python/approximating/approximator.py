@@ -1,13 +1,15 @@
 import numpy as np
+import time
 
 from collections import namedtuple
 from numba import njit
 from python.scaling.scaler import Scaler
 
 PointCache = namedtuple('PointCache', ['x', 'x_squared', 'x_squared_inverse', 'special_index'])
-SystemCache = namedtuple('SystemCache', ['solution_count', 'B_scaled_system', 'scaled_solutions', 'A_system'])
+SystemCache = namedtuple('SystemCache', ['B_scaled_system', 'scaled_solutions', 'A_system'])
+ApproximateOptions = namedtuple('ApproximateOptions', ['dimension', 'perturb', 'point_count', 'matrix_count', 'rng'])
 
-@njit
+@njit(cache=True)
 def _get_special_index(x_squared):
     dimension = len(x_squared)
     sorted = np.sort(x_squared)
@@ -25,7 +27,7 @@ def _get_special_index(x_squared):
             return i
     raise ValueError('this shouldn\'t happen, there should be an exact match')
 
-@njit
+@njit(cache=True)
 def _get_results(point_cache : PointCache, system_cache : SystemCache):
     dimension = len(point_cache.x)
     partial_results = np.zeros((dimension, dimension))
@@ -62,7 +64,7 @@ def scale_system(system):
         scaled_system[i] = np.sqrt(scaled_solutions[i]) * (system[i] @ T)
     return scaled_system, scaled_solutions
 
-@njit
+@njit(cache=True)
 def get_system_diagonals(system, i):
     dimension = len(system)
     diagonals = np.zeros(dimension)
@@ -71,21 +73,20 @@ def get_system_diagonals(system, i):
         diagonals[j] = np.dot(a, a)
     return diagonals
 
-@njit
+@njit(cache=True)
 def create_point_cache(x):
     x_squared = np.power(x, 2)
     x_squared_inverse = 1 / x_squared
     special_index = _get_special_index(x_squared)
     return PointCache(x=x, x_squared=x_squared, x_squared_inverse=x_squared_inverse, special_index=special_index)
 
-@njit
-def create_system_cache(solution_count, B_scaled_system, scaled_solutions, random_system):
+@njit(cache=True)
+def create_system_cache(B_scaled_system, scaled_solutions, random_system):
     A_system = B_scaled_system + random_system
-    return SystemCache(solution_count=solution_count, B_scaled_system=B_scaled_system, scaled_solutions=scaled_solutions, \
-        A_system=A_system)
-    
-@njit
-def approximate(point_cache : PointCache, system_cache : SystemCache):
+    return SystemCache(B_scaled_system=B_scaled_system, scaled_solutions=scaled_solutions, A_system=A_system)
+
+@njit(cache=True)
+def _approximate(point_cache : PointCache, system_cache : SystemCache):
     B_psd_system_diagonals = get_system_diagonals(system_cache.B_scaled_system, point_cache.special_index)
     A_psd_system_diagonals = get_system_diagonals(system_cache.A_system, point_cache.special_index)
     A_B_diagonals_diff = np.power(A_psd_system_diagonals - B_psd_system_diagonals, 2)
@@ -118,3 +119,18 @@ def approximate(point_cache : PointCache, system_cache : SystemCache):
     weight = np.exp(weight)
     approximation = np.exp(logdet) * weight
     return approximation, log_gradient, logdet, weight
+
+@njit(cache=True)
+def approximate(options : ApproximateOptions, scaled_system : np.ndarray, scaled_solutions : np.ndarray):
+    total_dimension = (options.dimension, options.dimension, options.dimension)
+    system_approximation = 0
+    point_caches = [create_point_cache(options.rng.normal(0, 1, options.dimension)) for _ in range(options.point_count)]
+    for random_system in [options.perturb * options.rng.normal(0, 1, total_dimension) for _ in range(options.matrix_count)]:
+        system_cache = create_system_cache(scaled_system, scaled_solutions, random_system)
+        for point_cache in point_caches:
+            approximation, log_gradient, logdet, weight = _approximate(point_cache, system_cache)
+            # if approximation > 1000:
+            #     print('Found suspect approximation {}\n\tlog_gradient={}\n\tdet={}\n\tweight={}\n\tx={}'.format(approximation, log_gradient, np.exp(logdet), weight, self.point_cache.x))
+            system_approximation += approximation
+    system_approximation *= (1 / options.point_count) * (1 / options.matrix_count)
+    return system_approximation

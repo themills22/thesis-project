@@ -117,7 +117,7 @@
         "D:\\deep-reinforcement-learning\\thesis-project\\data\\power-flow\\graph\\4\\guesses\\2025-06-09-19-23-15-0.npz",
       ]
     },
-        {
+    {
       "name": "Python Debugger: approximate arguments",
       "type": "debugpy",
       "request": "launch",
@@ -130,6 +130,17 @@
         "--matrix-count=1000",
         "--data-path=D:\\deep-reinforcement-learning\\thesis-project\\data\\power-flow\\ellipse\\10\\2025-02-10-12-05-23-759.npz",
         "--results-folder=D:\\deep-reinforcement-learning\\thesis-project\\data\\power-flow\\ellipse\\10\\results",
+      ]
+    },
+    {
+      "name": "Python Debugger: train arguments",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "python\\rl\\train.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--algo=td3",
+        "--env=EllipseSystemEnv-v0"
       ]
     },
   ]

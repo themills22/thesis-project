@@ -1,0 +1,4 @@
+EllipseSystemEnv-v0:
+  n_timesteps: 20
+  policy: 'MlpPolicy'
+  policy_kwargs: "dict(net_arch=dict(pi=[1000, 1000], qf=[1000, 1000]))"
