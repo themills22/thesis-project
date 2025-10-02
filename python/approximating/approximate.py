@@ -61,8 +61,7 @@ def main():
         type=lambda value: ph.check_greater_than_int(value, 0))
     parser.add_argument('--data-path', help='Directories or files to approximate.', action='append', \
         type=ph.is_valid_file)
-    parser.add_argument('--compare-coercion', help='Compare the coercion values for all points.', action='store_true')
-    parser.add_argument('--results-folder', help='The directory to save the files.', required=True, type=ph.is_valid_file)
+    parser.add_argument('--results-folder', help='The directory to save the files.', type=ph.is_valid_file)
     parser.add_argument('--seed', help='The seed to use.', type=is_none_or_non_negative_int)
     
     args = parser.parse_args()
@@ -70,9 +69,7 @@ def main():
         raise ValueError('The perturbation factor >= (1 / n), {}'.format(1 / args.dimension))
     rng = np.random.default_rng(args.seed)
     total_dimension = (args.dimension, args.dimension, args.dimension)
-    coercion_values = [] if args.compare_coercion else None
     results = []
-    random_system_output = np.zeros((args.dimension, args.dimension, args.dimension))
     i = 1
     for solution_count, scaled_system, scaled_solutions in enumerate_systems(args, rng):
         start = time.time()
@@ -91,16 +88,20 @@ def main():
         i += 1
     indices = [i for i in range(len(results))]
     counts, approximations = map(list, zip(*sorted(results)))
-    print(approximations)
-    print(counts)
-    # plt.title('Approximating')
-    # plt.ylabel('Count')
-    # plt.plot(indices, normalize(approximations), color='green', label='Aprroximation')
-    # if counts[0] is not None:
-    #     plt.plot(indices, normalize(counts), color='blue', label='Actual count')
-    # plt.show()
+    indices = [i for i in range(len(counts))]
+    plt.title('Approximating')
+    plt.ylabel('Count')
+    plt.plot(indices, normalize(np.array(approximations)), color='green', label='Aprroximation')
+    if counts[0] is not None:
+        plt.plot(indices, normalize(np.array(counts)), color='blue', label='Actual count')
+    if args.results_folder:
+        file_path = '{}-{}-{}-{}'.format(args.dimension, args.perturb, args.point_count, args.matrix_count)
+        file_path = os.path.join(args.results_folder, file_path)
+        plt.savefig('{}.png'.format(file_path))
+        np.savez('{}.npz'.format(file_path), actual_counts=counts, approximations=approximations)
+    else:
+        plt.show()
 
 
 if __name__ == '__main__':
-    # cProfile.run('main()', 'cool-file2')
     main()
