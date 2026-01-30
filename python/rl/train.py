@@ -1,6 +1,7 @@
 import numpy as np
 import gymnasium as gym
 import python.rl.environments
+import python.approximating.approximator
 import rl_zoo3.train as train
 
 from stable_baselines3 import td3

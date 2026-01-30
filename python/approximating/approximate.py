@@ -60,10 +60,8 @@ def main():
     i = 1
     for system, count in enumerate_systems(args, rng):
         start = time.time()
-        options = ap.ApproximateOptions(dimension=args.dimension, perturb=args.perturb, point_count=args.point_count,
-            matrix_count=args.matrix_count, rng=rng)
         scaled_system, scaled_solutions = ap.scale_system(system)
-        system_approximation = ap.approximate(options, scaled_system, scaled_solutions)
+        system_approximation = ap.approximate(args.dimension, args.perturb, args.point_count, args.matrix_count, rng, scaled_system, scaled_solutions)
         results.append((count, system_approximation))
         print('System {}, {}'.format(i, time.time() - start))
         i += 1
@@ -71,9 +69,9 @@ def main():
     counts, approximations = map(list, zip(*sorted(results)))
     plt.title('Approximating')
     plt.ylabel('Count')
-    plt.plot(indices, normalize(approximations), color='green', label='Aprroximation')
+    plt.plot(indices, normalize(np.array(approximations)), color='green', label='Aprroximation')
     if counts[0] is not None:
-        plt.plot(indices, normalize(counts), color='blue', label='Actual count')
+        plt.plot(indices, normalize(np.array(counts)), color='blue', label='Actual count')
     if args.results_folder:
         file_path = '{}-{}-{}-{}'.format(args.dimension, args.perturb, args.point_count, args.matrix_count)
         file_path = os.path.join(args.results_folder, file_path)

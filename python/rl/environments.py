@@ -32,13 +32,12 @@ class EllipseSystemEnv(gym.Env):
         reward = 0
         terminated = False
         try:
-            options = ap.ApproximateOptions(dimension=self.dimension, perturb=self.perturb, point_count=self.point_count, \
-                matrix_count=self.matrix_count, rng=self.np_random)
             scaled_system, scaled_solutions = ap.scale_system(self._agent_location)
-            reward = self.np_random.normal(0, 1) # TODO: this is where the approximator goes
+            reward = ap.approximate(self.dimension, self.perturb, self.point_count, self.matrix_count, self.np_random, scaled_system, scaled_solutions)
+            # reward = self.np_random.normal(0, 1) # TODO: this is where the approximator goes
         except ValueError:
             reward = -100
             terminated = True
         return self._agent_location, reward, terminated, False, {}
     
-gym.register(id="EllipseSystemEnv-v0", entry_point=EllipseSystemEnv, max_episode_steps=1000)
+gym.register(id="EllipseSystemEnv-v0", entry_point=EllipseSystemEnv, max_episode_steps=20)

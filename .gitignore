@@ -57,6 +57,7 @@ src/testTestingRootWkspc/coverageWorkspace/.coverage
 
 # things I want to ignore
 data/
+logs/
 matrices/
 model/
 results/
