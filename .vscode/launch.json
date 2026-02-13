@@ -150,5 +150,17 @@
       ],
       "justMyCode": false
     },
+    {
+      "name": "Python Debugger: evaluate model",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "python\\evaluate_model.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--model-path", "D:\\deep-reinforcement-learning\\thesis-project\\logs\\td3\\EllipseSystemEnv-v0_20\\rl_model_100_steps.zip",
+        "--num-improvements", "30"
+      ],
+      "justMyCode": false
+    },
   ]
 }

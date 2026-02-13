@@ -1,0 +1,9 @@
+{
+    "packages": {
+        "PowerFlow": {
+            "uuid": "06b95eb9-8cbd-421c-8226-5203e15d792b",
+            "path": "..\\julia",
+            "dev": true
+        }
+    }
+}
