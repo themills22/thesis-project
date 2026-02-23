@@ -4,10 +4,10 @@ using HomotopyContinuation, LinearAlgebra, DataStructures, Dates, NPZ
 # order of arguments: <seed> <number of iterations>
 
 #dimension of ellipses
-n = 8;
+n = 10;
 
 #number of trials
-its = 1 
+its = 10000
 
 #define variables
 @var x[1:n]
@@ -39,39 +39,30 @@ start_sols = [S[m[i][1]] for i in 1:length(m)];
 
 
 #record # of real solutions in reals, # of solutions in sols and if there are any instances
-reals=[];
-sols=[];
-all_params = [];
+reals = Vector{Int64}();
+all_params = Array{Float64, 4}(undef, its, n, n, n);
 
 #solve polynomial system its times
 for i in 1:its
 
   #define set of n random ellipses
-  new_params = [randn(n,n) for i in 1:n];
-  append!(all_params, new_params)
-  new_params = [new_params[i]*new_params[i]' for i in 1:n];
-
-  #normalize ellipses to have norm 1
-  new_params = [new_params[i]/norm(new_params[i]) for i in 1:n]
-  append!(all_params, new_params)
+  new_params = randn(n, n, n);
+  all_params[i, :, :, :] = new_params
+  new_params = [new_params[i, :, :] * new_params[i, :, :]' for i in 1:n];
   new_params = collect(Iterators.flatten(new_params));
 
   #solve system
   R1 = solve(F, start_sols; start_parameters=start_param, target_parameters=new_params, show_progress =false)
-  S1 = solutions(R1)
   append!(reals, 2 * length(real_solutions(R1)))
-  append!(sols, length(S1))
 
-  show(R1)
-  show(length(real_solutions(R1)))
+  # show(R1)
+  # show(length(real_solutions(R1)))
 
-  if i % 100 == 0
-    println("Iteration: ", i)
+  # if i % 10 == 0
+  #   println("Iteration: ", i)
 
-    local file_name = "data\\power-flow\\ellipse\\" * n * "\\" * Dates.format(now(UTC), "yyyy-mm-dd-HH-MM-SS-sss") * ".npz"
-    npzwrite(file_name, Dict("systems" => all_params, "solution_counts" => reals, "sols" => sols))
-    empty!(reals)
-    empty!(sols)
-    empty!(all_params)
-  end
+  #   local file_name = "data\\power-flow\\ellipse\\" * string(n) * "\\" * Dates.format(now(UTC), "yyyy-mm-dd-HH-MM-SS-sss") * ".npz"
+  #   npzwrite(file_name, Dict("systems" => all_params, "solution_counts" => reals))
+  #   empty!(reals)
+  # end
 end

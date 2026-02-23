@@ -158,7 +158,8 @@
       "console": "integratedTerminal",
       "args": [
         "--model-path", "D:\\deep-reinforcement-learning\\thesis-project\\logs\\td3\\EllipseSystemEnv-v0_20\\rl_model_100_steps.zip",
-        "--num-improvements", "30"
+        "--num-improvements", "15"
+        ,"--num-systems", "50"
       ],
       "justMyCode": false
     },

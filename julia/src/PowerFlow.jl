@@ -72,9 +72,13 @@ function judge_partition(systems, partition, start_parameters, F, S)
     return counts
 end
 
-function judge_matrix_systems(systems)
-    # number of nodes
-    n = size(systems, 2);
+global matrix_system_cache = Dict()
+
+function create_matrix_system(n)
+    item = get(matrix_system_cache, n, missing);
+    if !isequal(item, missing)
+        return item;
+    end
 
     # define variables
     @var x[1:n]
@@ -103,19 +107,31 @@ function judge_matrix_systems(systems)
     Gr = GroupActions(x -> (-1*x ));
     m = multiplicities(S, group_action = Gr);
     start_sols = [S[m[i][1]] for i in 1:length(m)];
+    matrix_system_cache[n] = (F, start_sols, start_param);
+    return (F, start_sols, start_param);
+end
 
-    counts = [];
-    for i in axes(systems, 1)
-        system = systems[i, :, :, :]
-        new_params = [system[j, :, :]*system[j, :, :]' for j in 1:n];
-        new_params = collect(Iterators.flatten(new_params));
+function judge_matrix_systems(systems)
+    # number of nodes
+    n = size(systems, 2);
+    F, start_sols, start_param = create_matrix_system(n);
+    try
+        counts = [];
+        for i in axes(systems, 1)
+            system = systems[i, :, :, :]
+            new_params = [system[j, :, :]*system[j, :, :]' for j in 1:n];
+            new_params = collect(Iterators.flatten(new_params));
 
-        # solve system
-        R1 = solve(F, start_sols; start_parameters=start_param, target_parameters=new_params, show_progress =false);
-        append!(counts, 2 * length(real_solutions(R1)));
+            # solve system
+            R1 = solve(F, start_sols; start_parameters=start_param, target_parameters=new_params, show_progress =false);
+            append!(counts, 2 * length(real_solutions(R1)));
+        end
+
+        return counts;
+    catch e
+        println("Error occurred: $e");
+        return Nothing;
     end
-
-    return counts;
 end
 
 end
