@@ -4,9 +4,6 @@ import python.rl.environments
 import python.approximating.approximator
 import rl_zoo3.train as train
 
-from stable_baselines3 import td3
-from stable_baselines3.common.noise import NormalActionNoise
-
 def main():
     train.train()
     # environment = gym.make('EllipseSystemEnv-v0', max_episode_steps=1000, dimension=10, action_limit=0.05)

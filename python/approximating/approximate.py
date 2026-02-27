@@ -49,7 +49,7 @@ def main():
         type=lambda value: ph.check_greater_than_int(value, 0))
     parser.add_argument('--data-path', help='Directories or files to approximate.', action='append', \
         type=ph.is_valid_file)
-    parser.add_argument('--results-folder', help='The directory to save the files.', required=True, type=ph.is_valid_file)
+    parser.add_argument('--results-folder', help='The directory to save the files.', required=False, type=ph.is_valid_file)
     parser.add_argument('--seed', help='The seed to use.', type=is_none_or_non_negative_int)
     
     args = parser.parse_args()
