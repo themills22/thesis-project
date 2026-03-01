@@ -3,6 +3,7 @@ import math
 import networkx as nx
 import numpy as np
 import python.approximating.approximator as ap
+import time
 
 from gymnasium import spaces
 
@@ -117,8 +118,6 @@ class PowerFlowSystemEnv(gym.Env):
         reward = 0
         terminated = False
         try:
-            # for i in range(1, self.graph_size):
-            #     self._decomposed_systems[i] = np.linalg.cholesky(self.matrix_systems[i])
             scaled_system, scaled_solutions = ap.scale_system(self.matrix_systems)
             reward = ap.approximate(len(self.matrix_systems), self.perturb, self.point_count, self.matrix_count, self.np_random, scaled_system, scaled_solutions)
         except ValueError as e:

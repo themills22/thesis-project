@@ -4,6 +4,7 @@
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
+  
     {
       "name": "Python Debugger: compare_results arguments",
       "type": "debugpy",
@@ -136,17 +137,17 @@
       "name": "Python Debugger: train arguments",
       "type": "debugpy",
       "request": "launch",
-      "program": "python\\rl\\train.py",
+      "program": "python/rl/train.py",
       "console": "integratedTerminal",
       "args": [
         "--algo", "td3",
         "--env", "EllipseSystemEnv-v0",
-        "--env-kwargs", "max_episode_steps:25", "dimension:10", "perturb:0.05", "point_count:50000", "matrix_count:2500", "action_limit:0.05",
-        "--conf-file", ".\\python\\rl\\td3.yml",
-        "--hyperparams", "buffer_size:100000", "policy_kwargs:\"dict(net_arch=dict(pi=[500, 400], qf=[500, 400]))\"", "noise_type:\"normal\"", "noise_std:0.05",
+        "--env-kwargs", "max_episode_steps:10", "dimension:10", "perturb:0.05", "point_count:50000", "matrix_count:2500", "action_limit:0.05",
+        "--conf-file", "./python/rl/td3.yml",
+        "--hyperparams", "buffer_size:100000", "policy_kwargs:\"dict(net_arch=dict(pi=[500, 400, 300], qf=[500, 400, 300]))\"", "noise_type:\"normal\"", "noise_std:0.05",
+        "--log-interval", "1",
         "--save-freq", "20",
-        "--tensorboard-log", ".\\logs\\td3\\tensorboard",
-        "-i", "D:\\deep-reinforcement-learning\\thesis-project\\logs\\td3\\EllipseSystemEnv-v0_11\\rl_model_540_steps.zip"
+        "--tensorboard-log", "./logs/td3/tensorboard",
       ],
       "justMyCode": false
     },

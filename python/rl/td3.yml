@@ -2,3 +2,8 @@ EllipseSystemEnv-v0:
   n_timesteps: 5000000
   policy: 'MlpPolicy'
   policy_kwargs: "dict(net_arch=dict(pi=[1000, 1000], qf=[1000, 1000]))"
+
+PowerFlowSystemEnv-v0:
+  n_timesteps: 5000000
+  policy: 'MlpPolicy'
+  policy_kwargs: "dict(net_arch=dict(pi=[1000, 1000], qf=[1000, 1000]))"

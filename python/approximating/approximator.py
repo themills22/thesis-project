@@ -1,9 +1,7 @@
 import numpy as np
-import time
 
 from collections import namedtuple
-from multiprocessing.shared_memory import SharedMemory
-from numba import njit
+from numba import njit, prange
 from python.scaling.scaler import Scaler
 
 ApproximateOptions = namedtuple('ApproximateOptions', ['dimension', 'perturb', 'point_count', 'matrix_count', 'rng'])
@@ -119,16 +117,17 @@ def _approximate(x, x_squared, x_squared_inverse, special_index, B_scaled_system
     approximation = np.exp(logdet) * weight
     return approximation, log_gradient, logdet, weight
 
-@njit(cache=True)
+@njit(parallel=True)
 def approximate(dimension, perturb, point_count, matrix_count, rng, scaled_system : np.ndarray, scaled_solutions : np.ndarray):
     total_dimension = (dimension, dimension, dimension)
     system_approximation = 0
     point_caches = [create_point_cache(rng.normal(0, 1, dimension)) for _ in range(point_count)]
     for random_system in [perturb * rng.normal(0, 1, total_dimension) for _ in range(matrix_count)]:
         B_scaled_system, scaled_solutions, A_system = create_system_cache(scaled_system, scaled_solutions, random_system)
-        for x, x_squared, x_squared_inverse, special_index in point_caches:
+        for i in prange(len(point_caches)):
+            x, x_squared, x_squared_inverse, special_index = point_caches[i]
             approximation, log_gradient, logdet, weight = _approximate(x, x_squared, x_squared_inverse, special_index, B_scaled_system, scaled_solutions, A_system)
             # if approximation > 1000:
             #     print('Found suspect approximation {}\n\tlog_gradient={}\n\tdet={}\n\tweight={}\n\tx={}'.format(approximation, log_gradient, np.exp(logdet), weight, self.point_cache.x))
             system_approximation += approximation
-    return system_approximation
+    return system_approximation / (point_count * matrix_count)
