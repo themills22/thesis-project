@@ -3,13 +3,8 @@
 ## Python Install Steps
 
 The virtual version of Python I have installed is 3.12.2.
-Packages you'll need to install:
-
-* argparse
-* matplotlib
-* numpy
-* scipy
-* tqdm
+Use the `requirements.txt` file to install the needed packages through `pip`.
+You may need to comment out the `torch...` packages to get the install to work.
 
 ## Julia Install Steps
 

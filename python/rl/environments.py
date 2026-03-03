@@ -6,6 +6,7 @@ import python.approximating.approximator as ap
 import time
 
 from gymnasium import spaces
+from python.rl.power_flow_matrices import PowerFlowMatrices
 
 class EllipseSystemEnv(gym.Env):
     
@@ -52,8 +53,7 @@ class PowerFlowSystemEnv(gym.Env):
             self.graph = nx.read_adjlist(self.graph_path)
         
         self.sorted_edges = sorted([edge for edge in self.graph.edges])
-        self.matrix_systems = self._create_matrix_systems()
-        self._decomposed_systems = np.array(self.matrix_systems)
+        self.matrices = PowerFlowMatrices(self.graph_size, self.sorted_edges)
         self.perturb = perturb
         self.point_count = point_count
         self.matrix_count = matrix_count
@@ -71,55 +71,25 @@ class PowerFlowSystemEnv(gym.Env):
         nx.write_adjlist(graph, self.graph_path)
         return graph 
     
-    def _create_matrix_systems(self):
-        system_size = 2 *  self.graph_size
-        matrix_systems = np.zeros((system_size, system_size, system_size), dtype=np.float32)
-        matrix_systems[0, 0, 0] = 1
-        
-        for i in range(self.graph_size, system_size):
-            matrix_systems[i, i - self.graph_size, i - self.graph_size] = 1
-            matrix_systems[i, i, i] = 1
-            
-        return matrix_systems
-    
-    def _update_observation(self, new_location):
-        def set_value(i, j, value):
-            if i != 0:
-                self.matrix_systems[i, i + self.graph_size, j] = value
-                self.matrix_systems[i, j + self.graph_size, i] = value
-                self.matrix_systems[i, i, j + self.graph_size] = value
-                self.matrix_systems[i, j, i + self.graph_size] = value
-                
-        new_location = np.clip(new_location, -1, 1)
-        for value, edge in zip(new_location, self.sorted_edges):
-            i, j = edge
-            set_value(i, j, value)
-            set_value(j, i, value)
-            
-        return new_location
-    
-    
     @property
     def graph_size(self):
         return len(self.graph)
     
-    @property
-    def matrix_size(self):
-        return len(self.matrix_systems)
-    
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed, options=options)
-        self._agent_location = self._update_observation(self.np_random.uniform(-1, 1, self.observation_space.shape).astype(np.float32))
+        self._agent_location = self.np_random.uniform(-1, 1, self.observation_space.shape).astype(np.float32)
+        self.matrices.update(self._agent_location)
         return self._agent_location, {}
     
     def step(self, action):
-        self._agent_location = self._update_observation(self._agent_location + action)
+        self._agent_location = np.clip(self._agent_location + action, -1, 1)
+        self.matrices.update(self._agent_location)
         
         reward = 0
         terminated = False
         try:
-            scaled_system, scaled_solutions = ap.scale_system(self.matrix_systems)
-            reward = ap.approximate(len(self.matrix_systems), self.perturb, self.point_count, self.matrix_count, self.np_random, scaled_system, scaled_solutions)
+            scaled_system, scaled_solutions = ap.scale_system(self.matrices.matrix_systems)
+            reward = ap.approximate(self.matrices.system_size, self.perturb, self.point_count, self.matrix_count, self.np_random, scaled_system, scaled_solutions)
         except ValueError as e:
             print(e)
             reward = -100
