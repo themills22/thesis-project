@@ -13,28 +13,45 @@ from tqdm import tqdm
 def _normalize(x):
     return (x - x.min()) / (x.max() - x.min())
 
-def evaluate(args):
-    jl.seval("using PowerFlow: judge_matrix_systems")
-    seed_sequence = np.random.SeedSequence(args.seed)
-    rng = np.random.default_rng(seed_sequence)
-    systems = rng.normal(0, 1, (args.num_systems, args.size, args.size, args.size))
-    results = np.zeros((args.num_systems, 4))
+def _evaluate(rng, num_systems, size, perturb, point_count, matrix_count):
+    systems = rng.normal(0, 1, (num_systems, size, size, size))
+    results = np.zeros((num_systems, 4))
     julia_start = time.time()
     results[:, 0] = np.array(jl.judge_matrix_systems(systems))
     julia_time_taken = time.time() - julia_start
 
-    for i in tqdm(range(args.num_systems)):
+    for i in tqdm(range(num_systems)):
         scale_start = time.time()    
         scaled_system, scaled_solutions = ap.scale_system(systems[i])
         scale_time_taken = time.time() - scale_start
         
         approximation_start= time.time()
-        approximation = ap.approximate(args.size, args.perturb, args.point_count, args.matrix_count, rng, scaled_system, scaled_solutions)
+        approximation = ap.approximate(size, perturb, point_count, matrix_count, rng, scaled_system, scaled_solutions)
         approximation_time_taken = time.time() - approximation_start
         
         results[i, 1:4] = [approximation, scale_time_taken, approximation_time_taken]
-    
+        
+    return julia_time_taken, results
+
+def evaluate(args):
+    jl.seval("using PowerFlow: judge_matrix_systems")
+    seed_sequence = np.random.SeedSequence(args.seed)
+    rng = np.random.default_rng(seed_sequence)
+    julia_time_taken, results = _evaluate(rng, args.num_systems, args.size, args.perturb, args.point_count, args.matrix_count)
     np.savez(args.results_path, julia_time=np.array([julia_time_taken]), results=results)
+    
+def evaluate_time(args):
+    jl.seval("using PowerFlow: judge_matrix_systems")
+    seed_sequence = np.random.SeedSequence(args.seed)
+    rng = np.random.default_rng(seed_sequence)
+    for size in args.sizes:
+        perturb = 1 / (2 * size)
+        point_count = 5 * (size ** 4)
+        matrix_count = 2 * (size ** 2)
+        julia_time_taken, results = _evaluate(rng, args.num_systems, size, perturb, point_count, matrix_count)
+        print('Results for size {}:'.format(size))
+        print('\tActual time: {}'.format(julia_time_taken / args.num_systems))
+        print('\tApproximate time: {}'.format(results[:, 3].mean()))
     
 def process_results(args):
     julia_time_taken, results = None, None
@@ -77,6 +94,12 @@ def main():
     subparser.add_argument('--results-path', help='The npz file to save the comparison results to.', required=True, type=str)
     subparser.add_argument('--seed', help='The seed to use.', type=is_none_or_non_negative_int)
     subparser.set_defaults(func=evaluate)
+    
+    subparser = subparsers.add_parser('evaluate-time', help='Compare time taken to "count" solutions.')
+    subparser.add_argument('--num-systems', help='The number of systems to evaluate on.', required=True, type=is_positive_int)
+    subparser.add_argument('--sizes', nargs='+', help='The size of the matrix systems to generate.', required=True, type=int)
+    subparser.add_argument('--seed', help='The seed to use.', type=is_none_or_non_negative_int)
+    subparser.set_defaults(func=evaluate_time)
     
     subparser = subparsers.add_parser('process-results', help='Process the comparison results')
     subparser.add_argument('--results-path', help='The comparison results file.', required=True, type=ph.is_valid_file)

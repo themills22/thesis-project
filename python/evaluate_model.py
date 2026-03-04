@@ -90,31 +90,28 @@ class RandomPowerFlowActor:
         self.matrices.update(location)
         return location
 
-def _evaluate(repetitions, cutoff, root_counts, actor):
+def _evaluate(repetitions, cutoff, global_root_counts, actor):
     data = {
         'root_counts': {},
         'runs': {},
         'repetitions': repetitions,
         'cutoff': cutoff
     }
-    for root_count in root_counts:
+    for root_count in global_root_counts:
         data['root_counts'][root_count] = []
         
     for i in range(1, repetitions + 1):
         counts = []
-        root_counts = [root_count for root_count in root_counts]
+        root_counts = [root_count for root_count in global_root_counts]
         system = actor.initialize()
         for j in range(1, cutoff + 1):
             system = actor.get_next_system(system)
             count = jl.judge_matrix_systems(actor.julia_system(system))[0]
-            counts.append[count]
+            counts.append(count)
             exceeded_root_counts = [root_count for root_count in root_counts if count > root_count]
             for exceeded_root_count in exceeded_root_counts:
                 data['root_counts'][exceeded_root_count].append(j)
                 root_counts.remove(exceeded_root_count)
-            
-            if len(root_counts) == 0:
-                break
         
         data['runs'][i] = counts
     
@@ -195,7 +192,7 @@ def main():
     subparser.add_argument('--root-counts', nargs='+', help='The root counts to search for in improving a system.', required=True, type=greater_than_check)
     subparser.add_argument('--cutoff', help='The limit of how many systems to generate.', required=True, type=greater_than_check)
     subparser.add_argument('--repetitions', help='How many times to repeat the experiment.', required=True, type=greater_than_check)
-    subparser.add_argument('--graph-path', help='The filr path for the graph.', required=True, type=ph.is_valid_file)
+    subparser.add_argument('--graph-path', help='The file path for the graph.', required=True, type=ph.is_valid_file)
     subparser.add_argument('--results-path', help='Where to save the results.', required=True, type=str)
     subparser.set_defaults(func=evaluate_power_flow_model)
     
@@ -203,16 +200,16 @@ def main():
     subparser.add_argument('--root-counts', nargs='+', help='The root counts to search for in improving a system.', required=True, type=greater_than_check)
     subparser.add_argument('--cutoff', help='The limit of how many systems to generate.', required=True, type=greater_than_check)
     subparser.add_argument('--repetitions', help='How many times to repeat the experiment.', required=True, type=greater_than_check)
-    subparser.add_argument('--graph-path', help='The filr path for the graph.', required=True, type=ph.is_valid_file)
+    subparser.add_argument('--graph-path', help='The file path for the graph.', required=True, type=ph.is_valid_file)
     subparser.add_argument('--results-path', help='Where to save the results.', required=True, type=str)
     subparser.set_defaults(func=evaluate_power_flow_random)
     
-    subparser = subparsers.add_parser('process-results')
-    subparser.add_argument('--results-path', help='Where to read the results.', required=True, type=str)
+    subparser = subparsers.add_parser('process-results', help='Process the JSON results file.')
+    subparser.add_argument('--results-path', help='Where to read the results from.', required=True, type=str)
     subparser.set_defaults(func=process_results)
     
-    jl.seval("using PowerFlow: judge_matrix_systems")
     args = parser.parse_args()
+    jl.seval("using PowerFlow: judge_matrix_systems")
     args.func(args)
     
 def _get_average_gaussian_count(size):
