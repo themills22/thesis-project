@@ -42,17 +42,18 @@ def process_results(args):
         julia_time_taken, results = data['julia_time'][0], data['results']
     indices = [x for x in range(1, len(results) + 1)]
     julia_results, approximate_results = zip(*sorted(zip(results[:, 0], results[:, 1])))
-    julia_results, approximate_results = _normalize(np.array(julia_results)), _normalize(np.array(approximate_results))
-
+    julia_results, approximate_results = np.array(julia_results), np.array(approximate_results)
+    normalized_julia_results, normalized_approximate_results = _normalize(julia_results), _normalize(approximate_results)
+    
     print('Julia time average: {}'.format(julia_time_taken / len(results)))
     print('Approximate time average: {}'.format(results[:, 3].mean()))
     print('Scale time average: {}'.format(results[:, 2].mean()))
     
-    plt.plot(indices, julia_results, label='Actual root count')
-    plt.plot(indices, approximate_results, label='Approximate root count')
+    plt.plot(indices, normalized_julia_results, label='Actual real solution count', linestyle='--')
+    plt.plot(indices, normalized_approximate_results, label='Approximate real solution count')
     plt.xlabel('System')
     plt.ylabel('Normalized count')
-    plt.title('Root count comparison')
+    plt.title('Real solution count comparison')
     plt.legend()
     if args.plot_path is not None:
         plt.savefig(args.plot_path)
