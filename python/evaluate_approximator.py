@@ -44,7 +44,7 @@ def process_results(args):
     julia_results, approximate_results = zip(*sorted(zip(results[:, 0], results[:, 1])))
     julia_results, approximate_results = _normalize(np.array(julia_results)), _normalize(np.array(approximate_results))
 
-    print('Julia time average: {}'.format(julia_time_taken))
+    print('Julia time average: {}'.format(julia_time_taken / len(results)))
     print('Approximate time average: {}'.format(results[:, 3].mean()))
     print('Scale time average: {}'.format(results[:, 2].mean()))
     

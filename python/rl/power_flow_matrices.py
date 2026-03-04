@@ -12,8 +12,6 @@ class PowerFlowMatrices:
         for i in range(self.graph_size, self.system_size):
             self.matrix_systems[i, i - self.graph_size, i - self.graph_size] = 1
             self.matrix_systems[i, i, i] = 1
-            
-        return self.matrix_systems
     
     def update(self, new_location):
         def set_value(i, j, value):
