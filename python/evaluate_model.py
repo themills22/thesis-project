@@ -20,10 +20,8 @@ class EllipseModelActor:
         self.policy = model.policy
         self.observation_space = self.policy.observation_space
     
-    def julia_system(self, system):
-        transformed_system = np.zeros((1,) + system.shape)
-        transformed_system[0] = system
-        return transformed_system
+    def julia_systems(self, systems):
+        return systems
         
     def get_next_system(self, system):
         action, _ = self.policy.predict(system)
@@ -35,14 +33,11 @@ class RandomEllipseActor:
         self.rng = rng
         self.size = size
         
-    def julia_system(self, system):
-        transformed_system = np.zeros((1,) + system.shape)
-        transformed_system[0] = system
-        return transformed_system
+    def julia_systems(self, systems):
+        return systems
     
     def get_next_system(self, system):
-        action = self.rng.uniform(-0.01, 0.01, system.shape)
-        return np.clip(system + action, -1, 1)
+        return self.rng.normal(0, 1, system.shape)
     
 class PowerFlowModelActor:
     def __init__(self, model, graph, model_id):
@@ -54,15 +49,16 @@ class PowerFlowModelActor:
         self.matrices = PowerFlowMatrices(len(self.graph), self.sorted_edges)
         self.id = model_id
     
-    def julia_system(self, system):
-        transformed_system = np.zeros((1,) + self.matrices.matrix_systems.shape)
-        transformed_system[0] = self.matrices.matrix_systems
-        return transformed_system
+    def julia_systems(self, systems):
+        julia_systems = np.zeros((len(systems),) + self.matrices.matrix_systems.shape)
+        for i in range(len(systems)):
+            self.matrices.update(systems[i])
+            julia_systems[i] = self.matrices.matrix_systems
+        return self.julia_systems 
     
     def get_next_system(self, system):
         action, _ = self.policy.predict(system)
         location = np.clip(system + action, self.observation_space.low, self.observation_space.high)
-        self.matrices.update(location)
         return location
     
 class RandomPowerFlowActor:
@@ -72,10 +68,12 @@ class RandomPowerFlowActor:
         self.matrices = PowerFlowMatrices(len(self.graph), sorted(self.graph.edges))
         self.id = 'random'
         
-    def julia_system(self, system):
-        transformed_system = np.zeros((1,) + self.matrices.matrix_systems.shape)
-        transformed_system[0] = self.matrices.matrix_systems
-        return transformed_system
+    def julia_systems(self, systems):
+        julia_systems = np.zeros((len(systems),) + self.matrices.matrix_systems.shape)
+        for i in range(len(systems)):
+            self.matrices.update(systems[i])
+            julia_systems[i] = self.matrices.matrix_systems
+        return self.julia_systems 
     
     def get_next_system(self, system):
         action = self.rng.uniform(-0.01, 0.01, len(self.graph.edges))
@@ -100,15 +98,14 @@ def _evaluate(cutoff, global_root_counts, initial_systems, actors):
     for system in tqdm(initial_systems):
         for actor in actors:
             counts = []
-            systems = []
+            systems = np.zeros((len(initial_systems),) + system.shape)
             for j in range(cutoff):
                 system = actor.get_next_system(system)
-                systems.append(system)
+                systems[j] = system
             
-            counts = [0 for _ in range(cutoff)]
-            for j in range(cutoff):
-                system = actor.julia_system(systems[j])
-                counts[j] = jl.judge_matrix_systems(actor.julia_system(system))[0]
+            julia_systems = actor.julia_systems(systems)
+            counts = jl.judge_matrix_systems(julia_systems)
+            counts = [count for count in counts]
             
             root_counts = [root_count for root_count in global_root_counts]    
             for count, j in zip(counts, range(1, cutoff + 1)):
@@ -145,6 +142,8 @@ def evaluate_power_flow(args):
     data = _evaluate(args.cutoff, args.root_counts, initial_systems, actors)
     with open(args.results_path, 'w') as file:
         json.dump(data, file)
+        
+    np.savez('{}.npz'.format(args.results_path), initial_systems=initial_systems)
         
 def process_results(args):
     data = None
