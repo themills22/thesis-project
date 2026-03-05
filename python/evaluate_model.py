@@ -154,14 +154,19 @@ def process_results(args):
     for actor_id in data:
         counts_sum = 0
         runs_total = 0
-        for i in data['runs']:
-            counts = data['runs'][i]
+        for i in data[actor_id]['runs']:
+            counts = data[actor_id]['runs'][i]
             counts_sum += sum(counts)
             runs_total += len(counts)
         
         averages[actor_id] = counts_sum / runs_total
     
     print(averages)
+    for actor_id in data:
+        print('Actor {} tries:'.format(actor_id))
+        for root_count in data[actor_id]['root_counts']:
+            tries = np.array(data[actor_id]['root_counts'][root_count])
+            print('\t{}: {} median, {} successes'.format(root_count, np.median(tries), len(tries)))
     run_ids = [run_id for run_id in data[next(iter(data))]['runs']]
     lines = ["-","--","-.",":"]
     line_cycler = cycle(lines)
@@ -176,6 +181,7 @@ def process_results(args):
         plt.title('Real solution count pathing')
         plt.legend()
         plt.savefig('{}.{}.png'.format(args.plot_path, run_id))
+        plt.savefig('{}.{}.png'.format(args.plot_path, run_id), dpi=300)
         plt.clf()
 
 def main():
