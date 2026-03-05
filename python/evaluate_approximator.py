@@ -73,7 +73,7 @@ def process_results(args):
     plt.title('Real solution count comparison')
     plt.legend()
     if args.plot_path is not None:
-        plt.savefig(args.plot_path)
+        plt.savefig(args.plot_path, dpi=300)
         
     if args.display:
         plt.show()
