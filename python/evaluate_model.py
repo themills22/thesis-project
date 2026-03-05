@@ -1,6 +1,8 @@
+from itertools import cycle
 from juliacall import Main as jl
 from python.rl.power_flow_matrices import PowerFlowMatrices
 from stable_baselines3 import TD3
+from tqdm import tqdm
 
 import argparse
 import json
@@ -12,7 +14,9 @@ import os
 import python.parser_helpers as ph
 
 class EllipseModelActor:
-    def __init__(self, model):
+    def __init__(self, model_path, model_id):
+        model = TD3.load(model_path)
+        self.id = model_id
         self.policy = model.policy
         self.observation_space = self.policy.observation_space
     
@@ -21,15 +25,13 @@ class EllipseModelActor:
         transformed_system[0] = system
         return transformed_system
         
-    def initialize(self):
-        return self.observation_space.sample()
-    
     def get_next_system(self, system):
         action, _ = self.policy.predict(system)
         return np.clip(system + action, self.observation_space.low, self.observation_space.high)
     
 class RandomEllipseActor:
     def __init__(self, rng, size):
+        self.id = 'random'
         self.rng = rng
         self.size = size
         
@@ -38,30 +40,24 @@ class RandomEllipseActor:
         transformed_system[0] = system
         return transformed_system
     
-    def initialize(self):
-        return self.rng.uniform(-1, 1, (self.size, self.size, self.size))
-    
     def get_next_system(self, system):
-        return self.rng.uniform(-1, 1, system.shape)
+        action = self.rng.uniform(-0.01, 0.01, system.shape)
+        return np.clip(system + action, -1, 1)
     
 class PowerFlowModelActor:
-    def __init__(self, model, graph):
+    def __init__(self, model, graph, model_id):
         self.policy = model.policy
         self.observation_space = self.policy.observation_space
         
         self.graph = graph
         self.sorted_edges = sorted(self.graph.edges)
         self.matrices = PowerFlowMatrices(len(self.graph), self.sorted_edges)
+        self.id = model_id
     
     def julia_system(self, system):
         transformed_system = np.zeros((1,) + self.matrices.matrix_systems.shape)
         transformed_system[0] = self.matrices.matrix_systems
         return transformed_system
-    
-    def initialize(self):
-        location = self.observation_space.sample()
-        self.matrices.update(location)
-        return location
     
     def get_next_system(self, system):
         action, _ = self.policy.predict(system)
@@ -74,72 +70,79 @@ class RandomPowerFlowActor:
         self.rng = rng
         self.graph = graph
         self.matrices = PowerFlowMatrices(len(self.graph), sorted(self.graph.edges))
+        self.id = 'random'
         
     def julia_system(self, system):
         transformed_system = np.zeros((1,) + self.matrices.matrix_systems.shape)
         transformed_system[0] = self.matrices.matrix_systems
         return transformed_system
     
-    def initialize(self):
-        location = self.rng.uniform(-1, 1, len(self.graph))
-        self.matrices.update(location)
-        return location
-    
     def get_next_system(self, system):
-        location = self.rng.uniform(-1, 1, len(self.graph))
+        action = self.rng.uniform(-0.01, 0.01, len(self.graph))
+        location = np.clip(system + action, -1, 1)
         self.matrices.update(location)
         return location
 
-def _evaluate(repetitions, cutoff, global_root_counts, actor):
-    data = {
-        'root_counts': {},
-        'runs': {},
-        'repetitions': repetitions,
-        'cutoff': cutoff
-    }
-    for root_count in global_root_counts:
-        data['root_counts'][root_count] = []
+def _evaluate(cutoff, global_root_counts, initial_systems, actors):
+    data = {}
+    for actor in actors:
+        data[actor.id] = {
+            'root_counts': {},
+            'runs': {},
+            'repetitions': len(initial_systems),
+            'cutoff': cutoff
+        }
         
-    for i in range(1, repetitions + 1):
-        counts = []
-        root_counts = [root_count for root_count in global_root_counts]
-        system = actor.initialize()
-        for j in range(1, cutoff + 1):
-            system = actor.get_next_system(system)
-            count = jl.judge_matrix_systems(actor.julia_system(system))[0]
-            counts.append(count)
-            exceeded_root_counts = [root_count for root_count in root_counts if count > root_count]
-            for exceeded_root_count in exceeded_root_counts:
-                data['root_counts'][exceeded_root_count].append(j)
-                root_counts.remove(exceeded_root_count)
+        for root_count in global_root_counts:
+            data[actor.id]['root_counts'][root_count] = []
         
-        data['runs'][i] = counts
+    i = 1
+    for system in tqdm(initial_systems):
+        for actor in actors:
+            counts = []
+            systems = []
+            for j in range(cutoff):
+                system = actor.get_next_system(system)
+                systems.append(system)
+            
+            counts = np.zeros(cutoff)
+            for j in range(cutoff):
+                system = systems[j]
+                counts[j] = jl.judge_matrix_systems(actor.julia_system(system))[0]
+            
+            root_counts = [root_count for root_count in global_root_counts]    
+            for count, j in zip(counts, range(1, cutoff + 1)):
+                exceeded_root_counts = [root_count for root_count in root_counts if count > root_count]
+                for exceeded_root_count in exceeded_root_counts:
+                    data[actor.id]['root_counts'][exceeded_root_count].append(j)
+                    root_counts.remove(exceeded_root_count)
+        
+            data[actor.id]['runs'][i] = counts
+        
+        i += 1
     
     return data
 
-def evaluate_ellipse_model(args):
-    actor = EllipseModelActor(TD3.load(args.model_path))
-    data = _evaluate(args.repetitions, args.cutoff, args.root_counts, actor)
-    with open(args.results_path, 'w') as file:
-        json.dump(data, file)
-        
-def evaluate_ellipse_random(args):
+def evaluate_ellipse(args):
     rng = np.random.default_rng()
-    actor = RandomEllipseActor(rng, args.size)
-    data = _evaluate(args.repetitions, args.cutoff, args.root_counts, actor)
-    with open(args.results_path, 'w') as file:
+    actors = [RandomEllipseActor(rng, args.size)]
+    for model_path, model_id in zip(args.model_paths, args.model_ids):
+        actors.append(EllipseModelActor(model_path, model_id))
+    initial_systems = rng.uniform(-1, 1, (args.repetitions, args.size, args.size, args.size))
+    jl.create_matrix_system(args.size)
+    data = _evaluate(args.cutoff, args.root_counts, initial_systems, actors)
+    with open('{}.json'.format(args.results_path), 'w') as file:
         json.dump(data, file)
         
-def evaluate_power_flow_model(args):
-    actor = PowerFlowModelActor(TD3.load(args.model_path), nx.read_adjlist(args.graph_path))
-    data = _evaluate(args.repetitions, args.cutoff, args.root_counts, actor)
-    with open(args.results_path, 'w') as file:
-        json.dump(data, file)
+    np.savez('{}.npz'.format(args.results_path), initial_systems=initial_systems)
         
-def evaluate_power_flow_random(args):
+def evaluate_power_flow(args):
     rng = np.random.default_rng()
-    actor = RandomPowerFlowActor(nx.read_adjlist(args.graph_path), rng)
-    data = _evaluate(args.repetitions, args.cutoff, args.root_counts, actor)
+    graph = nx.read_adjlist(args.graph_path)
+    actors = [RandomPowerFlowActor(graph, rng), PowerFlowModelActor(TD3.load(args.model_path), graph, args.model_id)]
+    size = len(graph.edges)
+    initial_systems = rng.uniform(-1, 1, (args.repetitions, size, size, size))
+    data = _evaluate(args.cutoff, args.root_counts, initial_systems, actors)
     with open(args.results_path, 'w') as file:
         json.dump(data, file)
         
@@ -148,68 +151,66 @@ def process_results(args):
     with open(args.results_path, 'r') as file:
         data = json.load(file)
     
-    counts_sum = 0
-    runs_total = 0
-    for i in data['runs']:
-        counts = data['runs'][i]
-        counts_sum += sum(counts)
-        runs_total += len(counts)
+    averages = {}
+    for actor_id in data:
+        counts_sum = 0
+        runs_total = 0
+        for i in data['runs']:
+            counts = data['runs'][i]
+            counts_sum += sum(counts)
+            runs_total += len(counts)
         
-    average = counts_sum / runs_total
-    average_iterations = {}
-    for i in data['root_counts']:
-        average_iterations[i] = np.array(data['root_counts']).mean()
-        
-    print('repetitions: {}'.format(data['repetitions']))
-    print('cutoff: {}'.format(data['cutoff']))
-    print('average root count: {}'.format(average))
-    for i in sorted(average_iterations):
-        print('average iteration for {} count: {}'.format(i, average_iterations[i]))
+        averages[actor_id] = counts_sum / runs_total
+    
+    print(averages)
+    run_ids = [run_id for run_id in data[next(iter(data))]['runs']]
+    lines = ["-","--","-.",":"]
+    line_cycler = cycle(lines)
+    for run_id in run_ids:
+        for actor_id in data:
+            run = data[actor_id]['runs'][run_id]
+            run_length = [r for r in range(1, len(run) + 1)]
+            plt.plot(run_length, run, label=actor_id, linestyle=next(line_cycler))
+            
+        plt.xlabel('System')
+        plt.ylabel('Real solution count')
+        plt.title('Real solution count pathing')
+        plt.legend()
+        plt.savefig('{}.{}.png'.format(args.plot_path, run_id))
+        plt.clf()
 
 def main():
     greater_than_check = lambda value: ph.check_greater_than_int(value, 0)
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(required=True)
     
-    subparser = subparsers.add_parser('ellipse-model', help='Evaluate an ellipse model.')
-    subparser.add_argument('--model-path', help='The path of the model.', required=True, type=ph.is_valid_file)
-    subparser.add_argument('--root-counts', nargs='+', help='The root counts to search for in improving a system.', required=True, type=greater_than_check)
-    subparser.add_argument('--cutoff', help='The limit of how many systems to generate.', required=True, type=greater_than_check)
-    subparser.add_argument('--repetitions', help='How many times to repeat the experiment.', required=True, type=greater_than_check)
-    subparser.add_argument('--results-path', help='Where to save the results.', required=True, type=str)
-    subparser.set_defaults(func=evaluate_ellipse_model)
-    
-    subparser = subparsers.add_parser('ellipse-random', help='Evaluate randomly generated ellipses.')
+    subparser = subparsers.add_parser('ellipse', help='Evaluate an ellipse model.')
+    subparser.add_argument('--model-paths', nargs='+', help='The path of the model.', required=True, type=ph.is_valid_file)
+    subparser.add_argument('--model-ids', nargs='+', help='The IDs of the models.', required=True, type=str)
     subparser.add_argument('--size', help='The size of the systems to generate.', required=True, type=greater_than_check)
     subparser.add_argument('--root-counts', nargs='+', help='The root counts to search for in improving a system.', required=True, type=greater_than_check)
     subparser.add_argument('--cutoff', help='The limit of how many systems to generate.', required=True, type=greater_than_check)
     subparser.add_argument('--repetitions', help='How many times to repeat the experiment.', required=True, type=greater_than_check)
     subparser.add_argument('--results-path', help='Where to save the results.', required=True, type=str)
-    subparser.set_defaults(func=evaluate_ellipse_random)
+    subparser.set_defaults(func=evaluate_ellipse)
     
     subparser = subparsers.add_parser('power-flow-model', help='Evaluate a power flow model.')
     subparser.add_argument('--model-path', help='The path of the model.', required=True, type=ph.is_valid_file)
+    subparser.add_argument('--model-id', help='The model ID.', required=True, type=ph.is_valid_file)
     subparser.add_argument('--root-counts', nargs='+', help='The root counts to search for in improving a system.', required=True, type=greater_than_check)
     subparser.add_argument('--cutoff', help='The limit of how many systems to generate.', required=True, type=greater_than_check)
     subparser.add_argument('--repetitions', help='How many times to repeat the experiment.', required=True, type=greater_than_check)
     subparser.add_argument('--graph-path', help='The file path for the graph.', required=True, type=ph.is_valid_file)
     subparser.add_argument('--results-path', help='Where to save the results.', required=True, type=str)
-    subparser.set_defaults(func=evaluate_power_flow_model)
-    
-    subparser = subparsers.add_parser('power-flow-random', help='Evaluate randomly generated power flows.')
-    subparser.add_argument('--root-counts', nargs='+', help='The root counts to search for in improving a system.', required=True, type=greater_than_check)
-    subparser.add_argument('--cutoff', help='The limit of how many systems to generate.', required=True, type=greater_than_check)
-    subparser.add_argument('--repetitions', help='How many times to repeat the experiment.', required=True, type=greater_than_check)
-    subparser.add_argument('--graph-path', help='The file path for the graph.', required=True, type=ph.is_valid_file)
-    subparser.add_argument('--results-path', help='Where to save the results.', required=True, type=str)
-    subparser.set_defaults(func=evaluate_power_flow_random)
+    subparser.set_defaults(func=evaluate_power_flow)
     
     subparser = subparsers.add_parser('process-results', help='Process the JSON results file.')
     subparser.add_argument('--results-path', help='Where to read the results from.', required=True, type=str)
+    subparser.add_argument('--plot-path', help='Where to save the run plots to.', required=True, type=str)
     subparser.set_defaults(func=process_results)
     
     args = parser.parse_args()
-    jl.seval("using PowerFlow: judge_matrix_systems")
+    jl.seval("using PowerFlow: judge_matrix_systems, create_matrix_system")
     args.func(args)
     
 def _get_average_gaussian_count(size):
