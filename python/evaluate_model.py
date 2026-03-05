@@ -78,7 +78,7 @@ class RandomPowerFlowActor:
         return transformed_system
     
     def get_next_system(self, system):
-        action = self.rng.uniform(-0.01, 0.01, len(self.graph))
+        action = self.rng.uniform(-0.01, 0.01, len(self.graph.edges))
         location = np.clip(system + action, -1, 1)
         self.matrices.update(location)
         return location
@@ -105,9 +105,9 @@ def _evaluate(cutoff, global_root_counts, initial_systems, actors):
                 system = actor.get_next_system(system)
                 systems.append(system)
             
-            counts = np.zeros(cutoff)
+            counts = [0 for _ in range(cutoff)]
             for j in range(cutoff):
-                system = systems[j]
+                system = actor.julia_system(systems[j])
                 counts[j] = jl.judge_matrix_systems(actor.julia_system(system))[0]
             
             root_counts = [root_count for root_count in global_root_counts]    
@@ -141,7 +141,7 @@ def evaluate_power_flow(args):
     graph = nx.read_adjlist(args.graph_path)
     actors = [RandomPowerFlowActor(graph, rng), PowerFlowModelActor(TD3.load(args.model_path), graph, args.model_id)]
     size = len(graph.edges)
-    initial_systems = rng.uniform(-1, 1, (args.repetitions, size, size, size))
+    initial_systems = rng.uniform(-1, 1, (args.repetitions, size))
     data = _evaluate(args.cutoff, args.root_counts, initial_systems, actors)
     with open(args.results_path, 'w') as file:
         json.dump(data, file)
@@ -194,9 +194,9 @@ def main():
     subparser.add_argument('--results-path', help='Where to save the results.', required=True, type=str)
     subparser.set_defaults(func=evaluate_ellipse)
     
-    subparser = subparsers.add_parser('power-flow-model', help='Evaluate a power flow model.')
+    subparser = subparsers.add_parser('power-flow', help='Evaluate a power flow model.')
     subparser.add_argument('--model-path', help='The path of the model.', required=True, type=ph.is_valid_file)
-    subparser.add_argument('--model-id', help='The model ID.', required=True, type=ph.is_valid_file)
+    subparser.add_argument('--model-id', help='The model ID.', required=True, type=str)
     subparser.add_argument('--root-counts', nargs='+', help='The root counts to search for in improving a system.', required=True, type=greater_than_check)
     subparser.add_argument('--cutoff', help='The limit of how many systems to generate.', required=True, type=greater_than_check)
     subparser.add_argument('--repetitions', help='How many times to repeat the experiment.', required=True, type=greater_than_check)

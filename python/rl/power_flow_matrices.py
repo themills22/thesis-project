@@ -23,5 +23,6 @@ class PowerFlowMatrices:
                 
         for value, edge in zip(new_location, self.sorted_edges):
             i, j = edge
+            i, j = int(i), int(j)
             set_value(i, j, value)
             set_value(j, i, value)
