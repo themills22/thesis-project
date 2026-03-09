@@ -1,3 +1,9 @@
+# Reference Paper
+
+Our paper related to this work is available here: https://arxiv.org/abs/2603.05673
+
+
+
 # Installing everything you need
 
 ## Python Install Steps
