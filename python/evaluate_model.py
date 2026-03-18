@@ -178,9 +178,8 @@ def process_results(args):
             
         plt.xlabel('System')
         plt.ylabel('Real solution count')
-        plt.title('Real solution count pathing')
+        plt.title('Real solution count')
         plt.legend()
-        plt.savefig('{}.{}.png'.format(args.plot_path, run_id))
         plt.savefig('{}.{}.png'.format(args.plot_path, run_id), dpi=300)
         plt.clf()
 
