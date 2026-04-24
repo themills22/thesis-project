@@ -1,4 +1,4 @@
-import python.approximating.approximator as approximator
+import python.approximating.approximator as ap
 import argparse
 import json
 import matplotlib.pyplot as plt
@@ -38,11 +38,11 @@ system_indices = list(range(systems.shape[0]))
 results = {}
 def approximate_system(index, perturbation_factor):  
     scale_start = time.time()    
-    scaled_system, scaled_solutions = approximator.scale_system(systems[index])
+    scaled_system, scaled_solutions = ap.scale_system(systems[index])
     scale_time_taken = time.time() - scale_start
     
     approximation_start= time.time()
-    approximation = approximator.approximate(scaled_system, scaled_solutions, perturbation_factor, \
+    approximation = ap.approximate(scaled_system, scaled_solutions, perturbation_factor, \
         100, 100, rng, 10000)
     approximation_time_taken = time.time() - approximation_start
     

@@ -1,7 +1,7 @@
 import numpy as np
 
 from collections import namedtuple
-from numba import njit, prange
+from numba import njit
 from python.scaling.scaler import Scaler
 
 ApproximateOptions = namedtuple('ApproximateOptions', ['dimension', 'perturb', 'point_count', 'matrix_count', 'rng'])
@@ -117,14 +117,14 @@ def _approximate(x, x_squared, x_squared_inverse, special_index, B_scaled_system
     approximation = np.exp(logdet) * weight
     return approximation, log_gradient, logdet, weight
 
-@njit(parallel=True)
+@njit(cache=True)
 def approximate(dimension, perturb, point_count, matrix_count, rng, scaled_system : np.ndarray, scaled_solutions : np.ndarray):
     total_dimension = (dimension, dimension, dimension)
     system_approximation = 0
     for _ in range(matrix_count):
         random_system = perturb * rng.normal(0, 1, total_dimension)
         B_scaled_system, scaled_solutions, A_system = create_system_cache(scaled_system, scaled_solutions, random_system)
-        for _ in prange(point_count):
+        for _ in range(point_count):
             x, x_squared, x_squared_inverse, special_index = create_point_cache(rng.normal(0, 1, dimension))
             approximation, log_gradient, logdet, weight = _approximate(x, x_squared, x_squared_inverse, special_index, B_scaled_system, scaled_solutions, A_system)
             # if approximation > 1000:

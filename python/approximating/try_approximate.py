@@ -1,4 +1,4 @@
-import python.approximating.approximator as approximator
+import python.approximating.approximator as ap
 import json
 import numpy as np
 import python.dataset.read_julia_data as rjd
@@ -16,13 +16,13 @@ for i in tqdm.tqdm(range(systems.shape[0]), total=systems.shape[0]):
     results[i] = {
         'count' : int(system_solutions[i])
     }
-    scaled_system, scaled_solutions = approximator.scale_system(systems[i])
+    scaled_system, scaled_solutions = ap.scale_system(systems[i])
     for p in np.linspace(1.1, 3.0, 10):
         results[i][p] = {}
         for _ in range(100):
             point = rng.normal(0, 1, n)
             perturbation_factor = 1 / (n ** p)
-            projected_system_tuples = approximator.project_system(scaled_system, perturbation_factor, \
+            projected_system_tuples = ap.project_system(scaled_system, perturbation_factor, \
                 scaled_solutions, point, rng, 100)
             for j in range(n):
                 attempts, projected  = projected_system_tuples[j]

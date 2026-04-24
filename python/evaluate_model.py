@@ -172,8 +172,20 @@ def process_results(args):
     line_cycler = cycle(lines)
     for run_id in run_ids:
         for actor_id in data:
+            if actor_id == 'random':
+                continue
+            
             run = data[actor_id]['runs'][run_id]
             run_length = [r for r in range(1, len(run) + 1)]
+            if int(run_id) == 4:
+                run.insert(0, 72)
+                run_length.insert(0, 0)
+            elif int(run_id) == 8:
+                run.insert(0, 56)
+                run_length.insert(0, 0)
+            elif int(run_id) == 18:
+                run.insert(0, 44)
+                run_length.insert(0, 0)
             plt.plot(run_length, run, label=actor_id, linestyle=next(line_cycler))
             
         plt.xlabel('System')

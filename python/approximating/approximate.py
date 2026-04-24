@@ -5,9 +5,9 @@ import numpy as np
 import os
 import python.parser_helpers as ph
 import time
-import tqdm
 
-from typing import Generator
+from mpi_approximator import Coordinator, Worker, Settings
+from mpi4py import MPI
 
 def enumerate_systems(args, rng):
     total_dimension = (args.dimension, args.dimension, args.dimension)
@@ -34,7 +34,7 @@ def enumerate_systems(args, rng):
 def normalize(data):
     return (data - min(data))/(max(data) - min(data))
     
-def main():
+def coordinator_main(comm):
     is_positive_int = lambda value: ph.check_greater_than_int(value, 0)
     is_none_or_non_negative_int = lambda value: not value or ph.check_greater_than_int(value, -1)
     parser = argparse.ArgumentParser()
@@ -46,7 +46,7 @@ def main():
     parser.add_argument('--matrix-count', help='The number of matrices to sample.', required=True, \
         type=is_positive_int)
     parser.add_argument('--system-count', help='The number of systems to generate and approximate. Use --data-path if you want to approximate NPZ files.', \
-        type=lambda value: ph.check_greater_than_int(value, 0))
+        required=True, type=lambda value: ph.check_greater_than_int(value, 0))
     parser.add_argument('--data-path', help='Directories or files to approximate.', action='append', \
         type=ph.is_valid_file)
     parser.add_argument('--results-folder', help='The directory to save the files.', required=False, type=ph.is_valid_file)
@@ -55,22 +55,24 @@ def main():
     args = parser.parse_args()
     if args.perturb >= (1 / args.dimension):
         raise ValueError('The perturbation factor >= (1 / n), {}'.format(1 / args.dimension))
-    rng = np.random.default_rng(args.seed)
+    settings = Settings(np.random.default_rng(args.seed), args.point_count, args.matrix_count, args.dimension, args.perturb)
+    coordinator = Coordinator(comm, settings)
+    coordinator.reset(settings.rng)
     results = []
     i = 1
-    for system, count in enumerate_systems(args, rng):
+    for system, count in enumerate_systems(args, settings.rng):
         start = time.time()
         scaled_system, scaled_solutions = ap.scale_system(system)
-        system_approximation = ap.approximate(args.dimension, args.perturb, args.point_count, args.matrix_count, rng, scaled_system, scaled_solutions)
+        system_approximation = coordinator.approximate(scaled_system, scaled_solutions)
         results.append((count, system_approximation))
-        print('System {}, {}'.format(i, time.time() - start))
+        print('System {}, time {}'.format(i, time.time() - start))
         i += 1
     indices = [i for i in range(len(results))]
     counts, approximations = map(list, zip(*sorted(results)))
     plt.title('Approximating')
     plt.ylabel('Count')
     plt.plot(indices, normalize(np.array(approximations)), color='green', label='Aprroximation')
-    if counts[0] is not None:
+    if counts[0] != -1:
         plt.plot(indices, normalize(np.array(counts)), color='blue', label='Actual count')
     if args.results_folder:
         file_path = '{}-{}-{}-{}'.format(args.dimension, args.perturb, args.point_count, args.matrix_count)
@@ -79,7 +81,16 @@ def main():
         np.savez('{}.npz'.format(file_path), actual_counts=counts, approximations=approximations)
     else:
         plt.show()
+    coordinator.close()
+
+        
+def worker_main(comm):
+    worker = Worker(comm)
+    worker.work()
 
 if __name__ == '__main__':
-    # cProfile.run('main()', 'cool-file2')
-    main()
+    comm = MPI.COMM_WORLD
+    if comm.Get_rank() == 0:
+        coordinator_main(comm)
+    else:
+        worker_main(comm)
