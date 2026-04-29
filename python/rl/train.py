@@ -2,7 +2,7 @@ import python.rl.environments
 import rl_zoo3.train as train
 
 from mpi4py import MPI
-from python.approximating.approximate import Worker
+from python.approximating.mpi_approximator import Worker
 
 if __name__ == '__main__':
     comm = MPI.COMM_WORLD

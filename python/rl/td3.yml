@@ -2,20 +2,22 @@ EllipseSystemEnv-v0:
   n_timesteps: 10000
   policy: 'MlpPolicy'
   buffer_size: 2000
+  learning_starts: 40
   noise_type: 'normal'
   noise_std: 0.01
-  policry_kwargs: "dict(net_arch=dict(pi=[512, 512, 512], qf=[512, 512, 512]))"
+  policy_kwargs: "dict(net_arch=dict(pi=[512, 512, 512], qf=[512, 512, 512]))"
   env_wrapper:
     - python.rl.wrappers.TimeLimitTerminateWrapper:
-      max_episode_steps: 10
+        max_episode_steps: 10
 
 PowerFlowSystemEnv-v0:
   n_timesteps: 10000
   policy: 'MlpPolicy'
   buffer_size: 2000
+  learning_starts: 40
   noise_type: 'normal'
   noise_std: 0.01
-  policry_kwargs: "dict(net_arch=dict(pi=[512, 512, 512], qf=[512, 512, 512]))"
+  policy_kwargs: "dict(net_arch=dict(pi=[512, 512, 512], qf=[512, 512, 512]))"
   env_wrapper:
     - python.rl.wrappers.TimeLimitTerminateWrapper:
-      max_episode_steps: 10
+        max_episode_steps: 10

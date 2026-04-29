@@ -11,7 +11,6 @@ import torch.optim as optim
 from python.dataset.graph.file_dataset import FileDataset as GraphDataset
 from python.nn.graph_net import GraphNet
 from scipy.special import comb
-from torchvision.transforms import v2
 
 def create_graph_net(paths, size, input_norm_cap):
     """Creates the graph NN.
