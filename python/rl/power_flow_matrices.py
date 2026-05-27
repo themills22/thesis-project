@@ -17,12 +17,13 @@ class PowerFlowMatrices:
         def set_value(i, j, value):
             if i != 0:
                 self.matrix_systems[i, i + self.graph_size, j] = value
-                self.matrix_systems[i, j + self.graph_size, i] = value
-                self.matrix_systems[i, i, j + self.graph_size] = value
+                self.matrix_systems[i, j + self.graph_size, i] = -value
+                self.matrix_systems[i, i, j + self.graph_size] = -value
                 self.matrix_systems[i, j, i + self.graph_size] = value
                 
         for value, edge in zip(new_location, self.sorted_edges):
             i, j = edge
             i, j = int(i), int(j)
+            value /= 2
             set_value(i, j, value)
             set_value(j, i, value)

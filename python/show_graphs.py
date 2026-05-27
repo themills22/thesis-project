@@ -9,8 +9,7 @@ def main():
     parser.add_argument('--directory', help='Directory containing graph files', required=True, type=str)
     args = parser.parse_args()
     
-    path = os.path.join(args.directory, "**/*.adjlist")
-    graph_files = glob.glob(path)
+    graph_files = glob.glob(os.path.join(args.directory, "*.adjlist")) +  glob.glob(os.path.join(args.directory, "**/*.adjlist"))
     graphs = [(graph_file, nx.read_adjlist(graph_file)) for graph_file in graph_files]
     graphs.sort(key=lambda g: len(g[1].nodes))
     for graph_file, graph in graphs:
