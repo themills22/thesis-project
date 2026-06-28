@@ -4,7 +4,6 @@
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
-  
     {
       "name": "Python Debugger: compare_results arguments",
       "type": "debugpy",
@@ -37,7 +36,7 @@
       ]
     },
     {
-      "name": "Python Debugger: process_results arguments",
+      "name": "Python Debugger: scaling process_results arguments",
       "type": "debugpy",
       "request": "launch",
       "program": "python\\scaling\\process_results.py",
@@ -158,9 +157,41 @@
       "program": "python\\evaluate_model.py",
       "console": "integratedTerminal",
       "args": [
-        "--model-path", "D:\\deep-reinforcement-learning\\thesis-project\\logs\\td3\\EllipseSystemEnv-v0_20\\rl_model_100_steps.zip",
-        "--num-improvements", "15"
-        ,"--num-systems", "50"
+        "power-flow",
+        "--model-path", "D:\\deep-reinforcement-learning\\thesis-project-tertiary\\results\\pfst\\mpi\\case-4gs\\td3\\PowerFlowSystemEnv-v0_2\\rl_model_9200_steps.zip",
+        "--model-id", "case-5",
+        "--root-counts", "20", "22",
+        "--cutoff", "100",
+        "--repetitions", "5",
+        "--graph-path", "D:\\deep-reinforcement-learning\\thesis-project-tertiary\\data\\graphs\\showtime\\case-4gs.adjlist",
+        "--results-path", "D:\\deep-reinforcement-learning\\thesis-project-tertiary\\results\\pfst\\mpi\\case-4gs\\results\\evaluation_results.json",
+      ],
+      "justMyCode": false
+    },
+    {
+      "name": "Python Debugger: rl process_results",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "python\\evaluate_model.py",
+      "console": "integratedTerminal",
+      "args": [
+        "process-results",
+        "--results-path", "D:\\deep-reinforcement-learning\\thesis-project-tertiary\\results\\pfst\\mpi\\case-4gs\\results\\evaluation_results.json",
+        "--plot-path", "D:\\deep-reinforcement-learning\\thesis-project-tertiary\\results\\pfst\\mpi\\case-4gs\\results\\plots",
+      ],
+      "justMyCode": false
+    },
+    {
+      "name": "Python Debugger: create graphs",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "python\\create_graphs.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--size", "6",
+        "--edge-probability", "0.5",
+        "--num-graphs", "1",
+        "--output-directory", "D:\\deep-reinforcement-learning\\thesis-project\\data\\power-flow\\graph\\10",
       ],
       "justMyCode": false
     },
