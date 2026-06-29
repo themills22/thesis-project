@@ -6,9 +6,6 @@ EllipseSystemEnv-v0:
   noise_type: 'normal'
   noise_std: 0.01
   policy_kwargs: "dict(net_arch=dict(pi=[512, 512, 512], qf=[512, 512, 512]))"
-  env_wrapper:
-    - python.rl.wrappers.TimeLimitTerminateWrapper:
-        max_episode_steps: 10
 
 PowerFlowSystemEnv-v0:
   n_timesteps: 10000
@@ -18,6 +15,3 @@ PowerFlowSystemEnv-v0:
   noise_type: 'normal'
   noise_std: 0.01
   policy_kwargs: "dict(net_arch=dict(pi=[512, 512, 512], qf=[512, 512, 512]))"
-  env_wrapper:
-    - python.rl.wrappers.TimeLimitTerminateWrapper:
-        max_episode_steps: 10

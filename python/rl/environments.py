@@ -2,6 +2,7 @@ import gymnasium as gym
 import networkx as nx
 import numpy as np
 import python.approximating.approximator as ap
+import scipy.linalg
 
 from python.approximating.mpi_approximator import Coordinator, Settings, CoordinatorException
 from mpi4py import MPI
@@ -19,11 +20,13 @@ class EllipseSystemEnv(gym.Env):
         self.action_space = spaces.Box(-action_limit, action_limit, self.approximation_settings.total_dimension)
         
         self._agent_location = np.zeros(self.approximation_settings.total_dimension, dtype=np.float32)
+        self._prev_score = 0
         
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed, options=options)
         self.coordinator.reset(self.np_random)
         self._agent_location = self.np_random.uniform(-1, 1, self.approximation_settings.total_dimension).astype(np.float32)
+        self._prev_score = 0
         return self._agent_location, {}
     
     def step(self, action):
@@ -34,7 +37,8 @@ class EllipseSystemEnv(gym.Env):
         terminated = False
         try:
             scaled_system, scaled_solutions = ap.scale_system(self._agent_location)
-            reward = self.coordinator.approximate(scaled_system, scaled_solutions)
+            reward = self.coordinator.approximate(scaled_system, scaled_solutions) - self._prev_score
+            self._prev_score = reward
         except ValueError:
             reward = -100
             terminated = True
@@ -62,6 +66,7 @@ class PowerFlowSystemEnv(gym.Env):
         self.action_space = spaces.Box(-action_limit, action_limit, (len(self.sorted_edges),))
         
         self._agent_location = np.zeros(self.observation_space.shape, dtype=np.float32)
+        self._prev_score = 0
     
     @property
     def graph_size(self):
@@ -72,6 +77,7 @@ class PowerFlowSystemEnv(gym.Env):
         self.coordinator.reset(self.np_random)
         self._agent_location = self.np_random.uniform(-1, 1, self.observation_space.shape).astype(np.float32)
         self.matrices.update(self._agent_location)
+        self._prev_score = 0
         return self._agent_location, {}
     
     def step(self, action):
@@ -81,8 +87,11 @@ class PowerFlowSystemEnv(gym.Env):
         reward = 0
         terminated = False
         try:
-            scaled_system, scaled_solutions = ap.scale_system(self.matrices.matrix_systems)
-            reward = self.coordinator.approximate(scaled_system, scaled_solutions)
+            psd_system = self.matrices.to_psd_system()
+            decomposed_system = scipy.linalg.sqrtm(psd_system)
+            scaled_system, scaled_solutions = ap.scale_system(decomposed_system)
+            reward = self.coordinator.approximate(scaled_system, scaled_solutions) - self._prev_score
+            self._prev_score = reward
         except ValueError:
             reward = -100
             terminated = True
