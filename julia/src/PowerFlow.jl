@@ -57,8 +57,8 @@ function create_matrix_system(n)
     Gr = GroupActions(x -> (-1*x ));
     m = multiplicities(S, group_action = Gr);
     start_sols = [S[m[i][1]] for i in 1:length(m)];
-    matrix_system_cache[n] = (F, start_sols, start_param);
-    return (F, start_sols, start_param);
+    matrix_system_cache[n] = (F, x, R, start_sols, start_param);
+    return (F, x, R, start_sols, start_param);
 end
 
 function create_power_flow_system(graph_path)
@@ -66,9 +66,47 @@ function create_power_flow_system(graph_path)
     if !isequal(item, missing)
         return item;
     end
-    
+
     G = loadgraph(graph_path, EdgeListFormat());
     G = to_undirected_graph(G);
+
+    # #define variables
+    # @var x[1:nv(G)]
+    # @var y[1:nv(G)]
+
+    # #define variables and equations to be repeatedly solved
+    # #define the edge variables, cheat to make it match an undirected graph edge matrix
+    # b = Array{Variable}(undef, nv(G), nv(G))
+    # for (i, j) in collect(combinations(1:nv(G), 2))
+    #     v = Variable(:b, i, j)
+    #     b[i, j] = v
+    #     b[j, i] = v
+    # end
+
+    # susceptance_equations = Expression[]
+    # for u in 2:nv(G)
+    #     p = [b[u, v] * (x[v] * y[u] - x[u] * y[v]) for v in neighbors(G, u)]
+    #     push!(susceptance_equations, sum(p) - 1)
+    # end
+
+    # slack_equations = [x[1] ^ 2 - 1, y[1]]
+    # one_equations = [x[i]^2 + y[i]^2 - 1 for i in 2:nv(G)]
+
+    # Eqs = vcat(susceptance_equations, slack_equations, one_equations)
+
+    # #reshape parameters into vector
+    # edge_list = collect(edges(G))
+    # edge_list = sort(edge_list, by = e -> (src(e), dst(e)))
+    # p = [b[src(e), dst(e)] for e in edge_list];
+
+    # #define system of equations
+    # F = System(Eqs; variables = x, parameters = p);
+
+    # # solve system once with generic complex parameters
+    # p0 = rand(Complex{Float64}, length(p));
+    # R = solve(F(x, p0), show_progress = false);
+    # power_flow_system_cache[graph_path] = (F, x, R, p0);
+    # return (F, x, R, p0);
 
     #dimension of ellipses
     n = 2*nv(G);
@@ -105,7 +143,7 @@ function create_power_flow_system(graph_path)
         end
 
         matrix = sparse(rows, cols, vals, n, n)
-        push!(susceptance_equations, x' * matrix * x - 1)
+        push!(susceptance_equations, x' * matrix * x)
     end
 
     slack_equations = [-1 + x[1] ^ 2, x[1 + nv(G)]]
@@ -123,15 +161,14 @@ function create_power_flow_system(graph_path)
     # solve system once with generic complex parameters
     p0 = rand(Complex{Float64}, length(p));
     R = solve(F(x, p0), show_progress = false);
-    S = solutions(R);
-    power_flow_system_cache[graph_path] = (F, S, p0);
-    return (F, S, p0);
+    power_flow_system_cache[graph_path] = (F, x, R, p0);
+    return (F, x, R, p0);
 end
 
 function judge_matrix_systems(systems)
     # number of nodes
     n = size(systems, 2);
-    F, start_sols, start_param = create_matrix_system(n);
+    F, x, R, start_param = create_matrix_system(n);
     try
         counts = [];
         for i in axes(systems, 1)
@@ -140,7 +177,7 @@ function judge_matrix_systems(systems)
             new_params = collect(Iterators.flatten(new_params));
 
             # solve system
-            R1 = solve(F, start_sols; start_parameters=start_param, target_parameters=new_params, show_progress =false);
+            R1 = solve(F, solutions(R); start_parameters=start_param, target_parameters=new_params, show_progress =false);
             append!(counts, 2 * length(real_solutions(R1)));
         end
 
@@ -155,14 +192,14 @@ end
 # sorted_values are expected to be sorted by the edge tuples
 function judge_power_flow_systems(graph_path, sorted_values)
     # number of nodes
-    F, start_sols, start_param = create_power_flow_system(graph_path)
+    F, x, R, start_param = create_power_flow_system(graph_path)
     try
         counts = [];
         for i in axes(sorted_values, 1)
             system = sorted_values[i, :]
 
             # solve system
-            R1 = solve(F, start_sols; start_parameters=start_param, target_parameters=system, show_progress =false);
+            R1 = solve(F, solutions(R); start_parameters=start_param, target_parameters=system, show_progress =false);
             append!(counts, length(real_solutions(R1)));
         end
 
@@ -179,7 +216,7 @@ end
 #This function outputs the new parameter values, new root, norm of imaginary part and counter value
 #If it terminates before counter = 10, then the new root will be real, the norm of the imaginary part of the new
 #root will be <0.01 and the new parameter values p0 will have more real roots then nReals
-function random_hill_climb(root, F, p0, nReals)
+function random_hill_climb(root, F, x, p0, nReals)
     counter = 0
     origNorm = norm(imag.(root));
     while origNorm > 0.01
@@ -245,13 +282,14 @@ function random_hill_climb(root, F, p0, nReals)
     return p0, root, origNorm, counter
 end
 
-function hill_climb(F, start_sols, p0, iteration_cap)
+function hill_climb(F, x, R, p0, iteration_cap)
 
     NRealSols = [];
     times = []
 
     #collect real and nonreal solutions
-    realSols = real_solutions(start_sols);
+    sols = solutions(R);
+    realSols = real_solutions(R);
     nonreal = findall(i -> norm(imag.(sols[i])) > 1e-8, eachindex(sols));
 
 
@@ -261,7 +299,7 @@ function hill_climb(F, start_sols, p0, iteration_cap)
 
     #run one iteration of random hill climbing
     tick()
-    p0, Newroot, newOrigNorm, ncounter = random_hill_climb(root, F, p0, length(realSols))
+    p0, Newroot, newOrigNorm, ncounter = random_hill_climb(root, F, x, p0, length(realSols))
 
     # do I want this?
     # p0 = rand(length(p));
@@ -288,17 +326,17 @@ function hill_climb(F, start_sols, p0, iteration_cap)
         root = sols[rootidx];
 
         #run one iteration of random hill climbing
-        p0, Newroot, newOrigNorm, ncounter = random_hill_climb(root, F, p0, length(realSols));
+        p0, Newroot, newOrigNorm, ncounter = random_hill_climb(root, F, x, p0, length(realSols));
     end
 
     tock()
-    return NRealSols, times()
+    return NRealSols, times
 end
 
 function hill_climb_matrix_systems(start_systems, iteration_cap)
     # number of nodes
     n = size(start_systems, 2);
-    F, start_sols, start_param = create_matrix_system(n);
+    F, x, R, start_param = create_matrix_system(n);
     try
         all_solutions = [];
         all_times = [];
@@ -307,7 +345,7 @@ function hill_climb_matrix_systems(start_systems, iteration_cap)
             new_params = [start_system[j, :, :]*start_system[j, :, :]' for j in 1:n];
             new_params = collect(Iterators.flatten(new_params));
 
-            solutions, times = hill_climb(F, start_sols, new_params, iteration_cap);
+            solutions, times = hill_climb(F, x, R, new_params, iteration_cap);
             append!(all_solutions, solutions);
             append!(all_times, times);
         end
@@ -321,16 +359,16 @@ function hill_climb_matrix_systems(start_systems, iteration_cap)
 end
 
 # sorted_values are expected to be sorted by the edge tuples
-function hill_climb_flow_systems(graph_path, sorted_values, iteration_cap)
+function hill_climb_power_flow_systems(graph_path, sorted_values, iteration_cap)
     # number of nodes
-    F, start_sols, start_param = create_power_flow_system(graph_path)
+    F, x, R, start_param = create_power_flow_system(graph_path)
     try
         all_solutions = [];
         all_times = [];
         for i in axes(sorted_values, 1)
             system = sorted_values[i, :]
 
-            solutions, times = hill_climb(F, start_sols, system, iteration_cap);
+            solutions, times = hill_climb(F, x, R, system, iteration_cap);
             append!(all_solutions, solutions);
             append!(all_times, times);
         end

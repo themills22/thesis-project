@@ -11,6 +11,8 @@ import networkx as nx
 import numpy as np
 import os
 import python.parser_helpers as ph
+import time
+import torch
 
 class EllipseModelActor:
     def __init__(self, model_path, model_id):
@@ -40,8 +42,7 @@ class RandomEllipseActor:
     
 class PowerFlowModelActor:
     def __init__(self, model, graph, model_id):
-        self.policy = model.policy
-        self.observation_space = self.policy.observation_space
+        self.model = model
         
         self.graph = graph
         self.sorted_edges = sorted(self.graph.edges)
@@ -53,12 +54,17 @@ class PowerFlowModelActor:
         for i in range(len(systems)):
             self.matrices.update(systems[i])
             julia_systems[i] = self.matrices.matrix_systems
-        return self.julia_systems 
+        return julia_systems 
     
     def get_next_system(self, system):
-        action, _ = self.policy.predict(system)
-        location = np.clip(system + action, self.observation_space.low, self.observation_space.high)
-        return location
+        action, _ = self.model.policy.predict(system)
+        location = np.clip(system + action, self.model.policy.observation_space.low, self.model.policy.observation_space.high)
+        return action, location
+    
+    def get_values(self, system, action):
+        system, action = torch.tensor(np.array([system]), dtype=torch.float32), torch.tensor(np.array([action]), dtype=torch.float32)
+        values = self.model.policy.critic.forward(system, action)
+        return [value.detach().numpy()[0][0].item() for value in values]
     
 class RandomPowerFlowActor:
     def __init__(self, graph, rng):
@@ -72,7 +78,7 @@ class RandomPowerFlowActor:
         for i in range(len(systems)):
             self.matrices.update(systems[i])
             julia_systems[i] = self.matrices.matrix_systems
-        return self.julia_systems 
+        return julia_systems 
     
     def get_next_system(self, system):
         action = self.rng.uniform(-0.01, 0.01, len(self.graph.edges))
@@ -80,12 +86,14 @@ class RandomPowerFlowActor:
         self.matrices.update(location)
         return location
 
-def _evaluate(cutoff, global_root_counts, initial_systems, actors):
+def _evaluate(cutoff, global_root_counts, initial_systems, actors, counter):
     data = {}
     for actor in actors:
         data[actor.id] = {
             'root_counts': {},
             'runs': {},
+            'times': {},
+            'values' : {},
             'repetitions': len(initial_systems),
             'cutoff': cutoff
         }
@@ -97,13 +105,20 @@ def _evaluate(cutoff, global_root_counts, initial_systems, actors):
     for system in tqdm(initial_systems):
         for actor in actors:
             counts = []
-            systems = np.zeros((len(initial_systems),) + system.shape)
-            for j in range(cutoff):
-                system = actor.get_next_system(system)
-                systems[j] = system
+            systems = np.zeros((cutoff + 1,) + system.shape)
+            systems[0] = system
             
-            julia_systems = actor.julia_systems(systems)
-            counts = jl.judge_matrix_systems(julia_systems)
+            start_time = time.time()
+            times = [start_time - start_time]
+            values = []
+            for j in range(1, cutoff + 1):
+                action, next_system = actor.get_next_system(system)
+                values.append(actor.get_values(system, action))
+                systems[j] = next_system
+                times.append(time.time() - start_time)
+                system = next_system
+            
+            counts = counter(systems)
             counts = [count for count in counts]
             
             root_counts = [root_count for root_count in global_root_counts]    
@@ -114,7 +129,8 @@ def _evaluate(cutoff, global_root_counts, initial_systems, actors):
                     root_counts.remove(exceeded_root_count)
         
             data[actor.id]['runs'][i] = counts
-        
+            data[actor.id]['times'][i] = times
+            data[actor.id]['values'][i] = values
         i += 1
     
     return data
@@ -126,7 +142,7 @@ def evaluate_ellipse(args):
         actors.append(EllipseModelActor(model_path, model_id))
     initial_systems = rng.uniform(-1, 1, (args.repetitions, args.size, args.size, args.size))
     jl.create_matrix_system(args.size)
-    data = _evaluate(args.cutoff, args.root_counts, initial_systems, actors)
+    data = _evaluate(args.cutoff, args.root_counts, initial_systems, actors, jl.judge_matrix_systems)
     with open('{}.json'.format(args.results_path), 'w') as file:
         json.dump(data, file)
         
@@ -135,10 +151,14 @@ def evaluate_ellipse(args):
 def evaluate_power_flow(args):
     rng = np.random.default_rng()
     graph = nx.read_adjlist(args.graph_path)
-    actors = [RandomPowerFlowActor(graph, rng), PowerFlowModelActor(TD3.load(args.model_path), graph, args.model_id)]
+    julia_edges = [(int(u) + 1, int(v) + 1) for u, v in sorted(graph.edges)]
+    # actors = [RandomPowerFlowActor(graph, rng), PowerFlowModelActor(TD3.load(args.model_path), graph, args.model_id)]
+    actors = [PowerFlowModelActor(TD3.load(args.model_path), graph, args.model_id)]
     size = len(graph.edges)
     initial_systems = rng.uniform(-1, 1, (args.repetitions, size))
-    data = _evaluate(args.cutoff, args.root_counts, initial_systems, actors)
+    def counter(systems):
+        return jl.judge_power_flow_systems(args.graph_path.replace('.adjlist', '.edgelist'), systems)
+    data = _evaluate(args.cutoff, args.root_counts, initial_systems, actors, counter)
     with open(args.results_path, 'w') as file:
         json.dump(data, file)
         
@@ -176,15 +196,15 @@ def process_results(args):
             
             run = data[actor_id]['runs'][run_id]
             run_length = [r for r in range(1, len(run) + 1)]
-            if int(run_id) == 4:
-                run.insert(0, 72)
-                run_length.insert(0, 0)
-            elif int(run_id) == 8:
-                run.insert(0, 56)
-                run_length.insert(0, 0)
-            elif int(run_id) == 18:
-                run.insert(0, 44)
-                run_length.insert(0, 0)
+            # if int(run_id) == 4:
+            #     run.insert(0, 72)
+            #     run_length.insert(0, 0)
+            # elif int(run_id) == 8:
+            #     run.insert(0, 56)
+            #     run_length.insert(0, 0)
+            # elif int(run_id) == 18:
+            #     run.insert(0, 44)
+            #     run_length.insert(0, 0)
             plt.plot(run_length, run, label=actor_id, linestyle=next(line_cycler))
             
         plt.xlabel('System')
@@ -225,7 +245,7 @@ def main():
     subparser.set_defaults(func=process_results)
     
     args = parser.parse_args()
-    jl.seval("using PowerFlow: judge_matrix_systems, create_matrix_system")
+    jl.seval("using PowerFlow: judge_matrix_systems, create_matrix_system, judge_power_flow_systems")
     args.func(args)
     
 def _get_average_gaussian_count(size):

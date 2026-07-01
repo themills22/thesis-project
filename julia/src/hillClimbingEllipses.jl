@@ -1,11 +1,17 @@
 #import packages
-using HomotopyContinuation, LinearAlgebra, DataStructures, Graphs, SparseArrays
+using HomotopyContinuation, LinearAlgebra, DataStructures, Graphs, SparseArrays, GraphIO.EdgeList
 
 ## Generate ellipses and polynomial equations with given sparsity pattern
 
 #Define graph being considered and adjacency matrix
+# graph_path = "D:\\deep-reinforcement-learning\\thesis-project-tertiary\\data\\graphs\\showtime\\case-4gs.edgelist"
+# G = loadgraph(graph_path, EdgeListFormat());
+# undirected_graph = SimpleGraph(nv(G))
+# for edge in edges(G)
+#     add_edge!(undirected_graph, src(edge), dst(edge))
+# end
+# G = undirected_graph
 G = path_graph(3);
-add_edge!(G, 1, 3);
 Ag = adjacency_matrix(G);
 
 #Use adjacency matrix to get sparsity structure of ellipses
@@ -80,7 +86,7 @@ origNorm = norm(imag.(root));
 
     #make sure new potential direction does not make other real solutions come together
     for i in 1:length(potentialDirectionsidx)
-      R1 = solve(F(x, p0 + potDirs[i]));
+      R1 = solve(F(x, p0 + potDirs[i]); show_progress = false);
       realSols1 = real_solutions(R1);
       if nReals==0 && length(realSols1) == 0
         append!(potDirs2, [potDirs[i]])
@@ -145,7 +151,7 @@ NRealSols = [];
 for its in 1:25
   println(its)
 
-  R = solve(F(x, p0));
+  R = solve(F(x, p0); show_progress = false);
   sols = solutions(R);
 
   #collect real and nonreal solutions
